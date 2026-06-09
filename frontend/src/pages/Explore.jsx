@@ -44,7 +44,7 @@ export default function Explore() {
     mutationFn: api.book,
     onSuccess: () => {
       toast.success("Booked! See you on the mat.");
-      qc.invalidateQueries({ queryKey: ["me"] });
+      qc.refetchQueries({ queryKey: ["me"] });
       qc.invalidateQueries({ queryKey: ["classes"] });
       qc.invalidateQueries({ queryKey: ["bookings"] });
     },
@@ -91,7 +91,7 @@ export default function Explore() {
             {CATEGORIES.map((c) => (
               <button
                 key={c}
-                data-testid={`filter-category-${c.toLowerCase()}`}
+                data-testid={`filter-category-${c}`}
                 onClick={() => setCategory(c)}
                 className={`px-4 py-1.5 rounded-full text-sm transition-colors ${
                   category === c
