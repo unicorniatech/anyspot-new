@@ -6,6 +6,7 @@ import Landing from "@/pages/Landing";
 import Explore from "@/pages/Explore";
 import StudioProfile from "@/pages/StudioProfile";
 import Dashboard from "@/pages/Dashboard";
+import Partner from "@/pages/Partner";
 
 function Layout() {
   return (
@@ -28,6 +29,7 @@ export default function App() {
           <Route path="/explore" element={<Explore />} />
           <Route path="/studio/:id" element={<StudioProfile />} />
           <Route path="/dashboard" element={<Dashboard />} />
+          <Route path="/partner" element={<Partner />} />
         </Route>
       </Routes>
     </BrowserRouter>

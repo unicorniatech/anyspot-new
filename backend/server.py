@@ -55,6 +55,7 @@ class FitClass(BaseModel):
     image: str
     spots_left: int = 8
     capacity: int = 12
+    waitlist_count: int = 0
 
 class Booking(BaseModel):
     model_config = ConfigDict(extra="ignore")
@@ -67,7 +68,7 @@ class Booking(BaseModel):
     start_time: str
     credits: int
     image: str
-    status: str = "confirmed"  # confirmed, cancelled, completed
+    status: str = "confirmed"  # confirmed, cancelled, completed, waitlist
     created_at: str = Field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
 
 class UserProfile(BaseModel):
@@ -80,6 +81,29 @@ class UserProfile(BaseModel):
 
 class BookingCreate(BaseModel):
     class_id: str
+
+class ClassCreate(BaseModel):
+    studio_id: str
+    title: str
+    instructor: Optional[str] = None
+    category: str
+    description: str = ""
+    duration_min: int = 60
+    credits: int = 2
+    start_time: str
+    image: Optional[str] = None
+    capacity: int = 12
+
+class ClassUpdate(BaseModel):
+    title: Optional[str] = None
+    instructor: Optional[str] = None
+    category: Optional[str] = None
+    description: Optional[str] = None
+    duration_min: Optional[int] = None
+    credits: Optional[int] = None
+    start_time: Optional[str] = None
+    image: Optional[str] = None
+    capacity: Optional[int] = None
 
 # ---------------- Seed Data ----------------
 
@@ -294,20 +318,24 @@ async def create_booking(payload: BookingCreate):
     cls = await db.classes.find_one({"id": payload.class_id}, {"_id": 0})
     if not cls:
         raise HTTPException(status_code=404, detail="Class not found")
-    if cls["spots_left"] <= 0:
-        raise HTTPException(status_code=400, detail="Class is full")
 
     user = await db.users.find_one({"id": "demo-user"}, {"_id": 0})
     if not user:
         user = UserProfile().model_dump()
         await db.users.insert_one(user)
-    if user["credits"] < cls["credits"]:
-        raise HTTPException(status_code=400, detail="Not enough credits")
 
-    # Prevent duplicate booking
-    existing = await db.bookings.find_one({"user_id": "demo-user", "class_id": payload.class_id, "status": "confirmed"})
+    # Prevent duplicate booking (confirmed or waitlist)
+    existing = await db.bookings.find_one({
+        "user_id": "demo-user",
+        "class_id": payload.class_id,
+        "status": {"$in": ["confirmed", "waitlist"]},
+    })
     if existing:
         raise HTTPException(status_code=400, detail="Already booked")
+
+    is_waitlist = cls["spots_left"] <= 0
+    if not is_waitlist and user["credits"] < cls["credits"]:
+        raise HTTPException(status_code=400, detail="Not enough credits")
 
     booking = Booking(
         user_id="demo-user",
@@ -318,10 +346,14 @@ async def create_booking(payload: BookingCreate):
         start_time=cls["start_time"],
         credits=cls["credits"],
         image=cls["image"],
+        status="waitlist" if is_waitlist else "confirmed",
     )
     await db.bookings.insert_one(booking.model_dump())
-    await db.users.update_one({"id": "demo-user"}, {"$inc": {"credits": -cls["credits"]}})
-    await db.classes.update_one({"id": cls["id"]}, {"$inc": {"spots_left": -1}})
+    if is_waitlist:
+        await db.classes.update_one({"id": cls["id"]}, {"$inc": {"waitlist_count": 1}})
+    else:
+        await db.users.update_one({"id": "demo-user"}, {"$inc": {"credits": -cls["credits"]}})
+        await db.classes.update_one({"id": cls["id"]}, {"$inc": {"spots_left": -1}})
     return booking
 
 @api_router.post("/bookings/{booking_id}/cancel", response_model=Booking)
@@ -329,13 +361,176 @@ async def cancel_booking(booking_id: str):
     booking = await db.bookings.find_one({"id": booking_id, "user_id": "demo-user"}, {"_id": 0})
     if not booking:
         raise HTTPException(status_code=404, detail="Booking not found")
-    if booking["status"] != "confirmed":
+    if booking["status"] not in ("confirmed", "waitlist"):
         raise HTTPException(status_code=400, detail="Booking cannot be cancelled")
+
     await db.bookings.update_one({"id": booking_id}, {"$set": {"status": "cancelled"}})
+
+    if booking["status"] == "waitlist":
+        await db.classes.update_one({"id": booking["class_id"]}, {"$inc": {"waitlist_count": -1}})
+        booking["status"] = "cancelled"
+        return booking
+
+    # Confirmed cancellation: refund + restore spot
     await db.users.update_one({"id": "demo-user"}, {"$inc": {"credits": booking["credits"]}})
     await db.classes.update_one({"id": booking["class_id"]}, {"$inc": {"spots_left": 1}})
+
+    # Promote earliest waitlist booking (any user) if any
+    promote = await db.bookings.find_one(
+        {"class_id": booking["class_id"], "status": "waitlist"},
+        {"_id": 0},
+        sort=[("created_at", 1)],
+    )
+    if promote:
+        promoted_user = await db.users.find_one({"id": promote["user_id"]}, {"_id": 0})
+        if promoted_user and promoted_user["credits"] >= promote["credits"]:
+            await db.bookings.update_one({"id": promote["id"]}, {"$set": {"status": "confirmed"}})
+            await db.users.update_one({"id": promote["user_id"]}, {"$inc": {"credits": -promote["credits"]}})
+            await db.classes.update_one(
+                {"id": booking["class_id"]},
+                {"$inc": {"spots_left": -1, "waitlist_count": -1}},
+            )
+
     booking["status"] = "cancelled"
     return booking
+
+# ---------------- Partner endpoints ----------------
+# For Phase 2 we treat a single "demo partner" who owns ALL seeded studios.
+
+@api_router.get("/partner/studios", response_model=List[Studio])
+async def partner_studios():
+    docs = await db.studios.find({}, {"_id": 0}).to_list(100)
+    return docs
+
+@api_router.get("/partner/overview")
+async def partner_overview():
+    now = datetime.now(timezone.utc)
+    week_ago = (now - timedelta(days=7)).isoformat()
+    month_ago = (now - timedelta(days=30)).isoformat()
+
+    week_bookings = await db.bookings.find(
+        {"status": "confirmed", "created_at": {"$gte": week_ago}}, {"_id": 0}
+    ).to_list(1000)
+    month_bookings = await db.bookings.find(
+        {"status": "confirmed", "created_at": {"$gte": month_ago}}, {"_id": 0}
+    ).to_list(5000)
+    all_confirmed = await db.bookings.find({"status": "confirmed"}, {"_id": 0}).to_list(10000)
+
+    week_credits = sum(b["credits"] for b in week_bookings)
+    month_credits = sum(b["credits"] for b in month_bookings)
+
+    # Top classes by booking count (all confirmed)
+    by_class = {}
+    for b in all_confirmed:
+        key = (b["class_id"], b["class_title"], b["studio_name"])
+        by_class[key] = by_class.get(key, 0) + 1
+    top_classes = [
+        {"class_id": k[0], "title": k[1], "studio_name": k[2], "bookings": v}
+        for k, v in sorted(by_class.items(), key=lambda x: -x[1])[:5]
+    ]
+
+    # Upcoming class roster summary (next 7 days)
+    now_iso = now.isoformat()
+    next_week_iso = (now + timedelta(days=7)).isoformat()
+    upcoming_classes = await db.classes.find(
+        {"start_time": {"$gte": now_iso, "$lte": next_week_iso}}, {"_id": 0}
+    ).sort("start_time", 1).to_list(50)
+    roster = []
+    for c in upcoming_classes[:8]:
+        booked = await db.bookings.count_documents({"class_id": c["id"], "status": "confirmed"})
+        waitlisted = await db.bookings.count_documents({"class_id": c["id"], "status": "waitlist"})
+        roster.append({
+            "class_id": c["id"],
+            "title": c["title"],
+            "studio_name": c["studio_name"],
+            "start_time": c["start_time"],
+            "capacity": c["capacity"],
+            "booked": booked,
+            "spots_left": c["spots_left"],
+            "waitlist": waitlisted,
+        })
+
+    return {
+        "reservations_week": len(week_bookings),
+        "reservations_month": len(month_bookings),
+        "credits_week": week_credits,
+        "credits_month": month_credits,
+        "active_classes": await db.classes.count_documents({"start_time": {"$gte": now_iso}}),
+        "total_studios": await db.studios.count_documents({}),
+        "top_classes": top_classes,
+        "upcoming_roster": roster,
+    }
+
+@api_router.get("/partner/classes", response_model=List[FitClass])
+async def partner_list_classes(studio_id: Optional[str] = None, upcoming: bool = True):
+    query = {}
+    if studio_id:
+        query["studio_id"] = studio_id
+    if upcoming:
+        query["start_time"] = {"$gte": datetime.now(timezone.utc).isoformat()}
+    docs = await db.classes.find(query, {"_id": 0}).sort("start_time", 1).to_list(500)
+    return docs
+
+@api_router.get("/partner/classes/{class_id}/roster", response_model=List[Booking])
+async def partner_class_roster(class_id: str):
+    docs = await db.bookings.find(
+        {"class_id": class_id, "status": {"$in": ["confirmed", "waitlist"]}}, {"_id": 0}
+    ).sort("created_at", 1).to_list(200)
+    return docs
+
+@api_router.post("/partner/classes", response_model=FitClass)
+async def partner_create_class(payload: ClassCreate):
+    studio = await db.studios.find_one({"id": payload.studio_id}, {"_id": 0})
+    if not studio:
+        raise HTTPException(status_code=404, detail="Studio not found")
+    fc = FitClass(
+        studio_id=studio["id"],
+        studio_name=studio["name"],
+        title=payload.title,
+        instructor=payload.instructor or studio["instructor_name"],
+        category=payload.category,
+        description=payload.description,
+        duration_min=payload.duration_min,
+        credits=payload.credits,
+        start_time=payload.start_time,
+        image=payload.image or studio["cover_image"],
+        spots_left=payload.capacity,
+        capacity=payload.capacity,
+    )
+    await db.classes.insert_one(fc.model_dump())
+    return fc
+
+@api_router.patch("/partner/classes/{class_id}", response_model=FitClass)
+async def partner_update_class(class_id: str, payload: ClassUpdate):
+    existing = await db.classes.find_one({"id": class_id}, {"_id": 0})
+    if not existing:
+        raise HTTPException(status_code=404, detail="Class not found")
+    update = {k: v for k, v in payload.model_dump().items() if v is not None}
+    if "capacity" in update:
+        # adjust spots_left by the delta (don't go below 0)
+        delta = update["capacity"] - existing["capacity"]
+        new_spots = max(0, existing["spots_left"] + delta)
+        update["spots_left"] = new_spots
+    if update:
+        await db.classes.update_one({"id": class_id}, {"$set": update})
+    updated = await db.classes.find_one({"id": class_id}, {"_id": 0})
+    return updated
+
+@api_router.delete("/partner/classes/{class_id}")
+async def partner_delete_class(class_id: str):
+    existing = await db.classes.find_one({"id": class_id}, {"_id": 0})
+    if not existing:
+        raise HTTPException(status_code=404, detail="Class not found")
+    # Cancel any active bookings and refund credits
+    active = await db.bookings.find(
+        {"class_id": class_id, "status": {"$in": ["confirmed", "waitlist"]}}, {"_id": 0}
+    ).to_list(500)
+    for b in active:
+        await db.bookings.update_one({"id": b["id"]}, {"$set": {"status": "cancelled"}})
+        if b["status"] == "confirmed":
+            await db.users.update_one({"id": b["user_id"]}, {"$inc": {"credits": b["credits"]}})
+    await db.classes.delete_one({"id": class_id})
+    return {"ok": True, "cancelled": len(active)}
 
 app.include_router(api_router)
 

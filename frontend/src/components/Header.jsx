@@ -8,6 +8,7 @@ const navItems = [
   { to: "/", label: "Home" },
   { to: "/explore", label: "Explore" },
   { to: "/dashboard", label: "Dashboard" },
+  { to: "/partner", label: "Partner" },
 ];
 
 export default function Header() {

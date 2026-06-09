@@ -42,8 +42,12 @@ export default function Explore() {
 
   const bookMutation = useMutation({
     mutationFn: api.book,
-    onSuccess: () => {
-      toast.success("Booked! See you on the mat.");
+    onSuccess: (data) => {
+      if (data?.status === "waitlist") {
+        toast.success("Class is full — you're on the waitlist.");
+      } else {
+        toast.success("Booked! See you on the mat.");
+      }
       qc.refetchQueries({ queryKey: ["me"] });
       qc.invalidateQueries({ queryKey: ["classes"] });
       qc.invalidateQueries({ queryKey: ["bookings"] });
@@ -184,15 +188,21 @@ export default function Explore() {
 
                 <div className="mt-4 flex items-center justify-between">
                   <span className="text-xs text-[#4A4A7A]">
-                    {c.spots_left} spots left
+                    {c.spots_left > 0
+                      ? `${c.spots_left} spots left`
+                      : `Full · ${c.waitlist_count || 0} on waitlist`}
                   </span>
                   <button
                     data-testid={`book-class-${c.id}`}
                     disabled={bookMutation.isPending}
                     onClick={() => bookMutation.mutate(c.id)}
-                    className="bg-[#FF8552] text-white rounded-full px-5 py-2 text-sm font-medium hover:bg-[#E57545] transition-colors disabled:opacity-50"
+                    className={`text-white rounded-full px-5 py-2 text-sm font-medium transition-colors disabled:opacity-50 ${
+                      c.spots_left > 0
+                        ? "bg-[#FF8552] hover:bg-[#E57545]"
+                        : "bg-[#0E0E52] hover:bg-[#0E0E52]/80"
+                    }`}
                   >
-                    Book
+                    {c.spots_left > 0 ? "Book" : "Join waitlist"}
                   </button>
                 </div>
               </div>

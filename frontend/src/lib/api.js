@@ -14,4 +14,16 @@ export const api = {
   bookings: () => http.get("/bookings").then((r) => r.data),
   book: (class_id) => http.post("/bookings", { class_id }).then((r) => r.data),
   cancel: (booking_id) => http.post(`/bookings/${booking_id}/cancel`).then((r) => r.data),
+
+  // Partner
+  partnerOverview: () => http.get("/partner/overview").then((r) => r.data),
+  partnerStudios: () => http.get("/partner/studios").then((r) => r.data),
+  partnerClasses: (params = {}) =>
+    http.get("/partner/classes", { params }).then((r) => r.data),
+  partnerRoster: (class_id) =>
+    http.get(`/partner/classes/${class_id}/roster`).then((r) => r.data),
+  createClass: (data) => http.post("/partner/classes", data).then((r) => r.data),
+  updateClass: (id, data) =>
+    http.patch(`/partner/classes/${id}`, data).then((r) => r.data),
+  deleteClass: (id) => http.delete(`/partner/classes/${id}`).then((r) => r.data),
 };

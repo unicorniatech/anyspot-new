@@ -31,8 +31,8 @@ export default function Dashboard() {
   });
 
   const now = new Date();
-  const upcoming = bookings.filter((b) => b.status === "confirmed" && new Date(b.start_time) > now);
-  const past = bookings.filter((b) => b.status !== "confirmed" || new Date(b.start_time) <= now);
+  const upcoming = bookings.filter((b) => (b.status === "confirmed" || b.status === "waitlist") && new Date(b.start_time) > now);
+  const past = bookings.filter((b) => !((b.status === "confirmed" || b.status === "waitlist") && new Date(b.start_time) > now));
 
   const list = tab === "upcoming" ? upcoming : past;
 
@@ -130,7 +130,12 @@ export default function Dashboard() {
                 >
                   <img src={b.image} alt={b.class_title} className="w-20 h-20 rounded-xl object-cover" />
                   <div className="flex-1 min-w-0">
-                    <p className="text-xs uppercase tracking-[0.2em] text-[#FF8552] font-bold">{b.studio_name}</p>
+                    <div className="flex items-center gap-2">
+                      <p className="text-xs uppercase tracking-[0.2em] text-[#FF8552] font-bold">{b.studio_name}</p>
+                      {b.status === "waitlist" && (
+                        <span className="text-[10px] uppercase tracking-widest px-2 py-0.5 rounded-full bg-[#FF8552]/15 text-[#FF8552] font-bold">Waitlist</span>
+                      )}
+                    </div>
                     <p className="font-display text-lg text-[#0E0E52] font-medium truncate">{b.class_title}</p>
                     <p className="text-sm text-[#4A4A7A] flex flex-wrap items-center gap-x-3 gap-y-1 mt-1">
                       <span className="flex items-center gap-1"><Calendar size={12} /> {t.day}, {t.date}</span>
