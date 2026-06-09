@@ -22,29 +22,24 @@ Build AnySpot — a boutique fitness platform (re-skin of "Vitality"). 8 screens
 - ✅ Backend: FastAPI + MongoDB, 4 seeded studios × 14 days × 3 slots = ~168 classes
 - ✅ Demo user "demo-user", 24 starter credits, atomic credit deduction + spot decrement, cancel refund
 
-## Phase 2 — Backlog (priority order)
-- **P0** Auth (custom or Emergent Google) — required before payments
-- **P0** Stripe Checkout — purchase credit packs
-- **P1** Partner Dashboard — studio reservations, revenue insights
-- **P1** Add Class flow — studio owners list new sessions
-- **P2** Platform Admin Panel — users, studios, transactions overview
-- **P2** Mobile-optimized polish, waitlists, recurring schedules
-- **P2** Reviews + ratings submission
+## Phase 2 — Shipped (2026-06-09)
+**Goal: Studio partner can run their business; waitlist closes the booking loop.**
+- ✅ Partner Dashboard (`/partner`) — KPIs (7d/30d reservations, 7d credits, active classes), upcoming roster w/ fill bars, top classes leaderboard, classes table
+- ✅ Add Class dialog (studio, category, title, instructor, start time, duration, credits, capacity, description)
+- ✅ Edit Class + Delete Class (auto-cancels active bookings + refunds confirmed users)
+- ✅ View Roster dialog per class (confirmed + waitlist pills)
+- ✅ Waitlist: full classes auto-route to waitlist (no credit charge); confirmed cancel auto-promotes earliest waitlist user (deducts their credits, restores spot)
+- ✅ Explore + Dashboard reflect waitlist state in UI
 
-## Architecture
-- Backend: FastAPI single file (`/app/backend/server.py`), Motor (async MongoDB), Pydantic v2 models.
-- Frontend: React 19 + react-router-dom v7 + @tanstack/react-query + Tailwind + shadcn UI + sonner + lucide-react + framer-motion.
-- Pages under `/app/frontend/src/pages/`, shared in `/app/frontend/src/components/`, API in `/app/frontend/src/lib/api.js`.
-
-## Endpoints
-- GET /api/studios, /api/studios/{id}, /api/studios/{id}/classes
-- GET /api/classes?category=&max_credits=&search=&time_of_day=
-- GET /api/classes/{id}
-- GET /api/me
-- GET /api/bookings, POST /api/bookings, POST /api/bookings/{id}/cancel
+## Phase 3 — Backlog (priority order)
+- **P0** Auth (Emergent Google login recommended) — required before payments + multi-tenant partners
+- **P0** Stripe Checkout — purchase credit packs (test keys in env)
+- **P1** Platform Admin Panel — users, studios, transactions overview
+- **P2** Recurring class schedules (every Mon @ 7am for 8 weeks)
+- **P2** Walk waitlist until promotion succeeds (current code promotes 1 user only)
+- **P2** Reviews + ratings, push notifications, mobile polish
 
 ## Next Action Items
-1. Decide auth approach for Phase 2 (Emergent Google vs JWT)
-2. Stripe integration for credit packs (test keys already in env)
-3. Partner dashboard + Add Class flow
-4. Admin panel
+1. Confirm auth approach (Emergent Google vs JWT)
+2. Stripe credit-pack checkout
+3. Platform Admin Panel
