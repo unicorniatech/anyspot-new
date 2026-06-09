@@ -26,7 +26,7 @@ export default function StudioProfile() {
     mutationFn: api.book,
     onSuccess: () => {
       toast.success("Booked! See you soon.");
-      qc.refetchQueries({ queryKey: ["me"] });
+      qc.refetchQueries({ queryKey: ["auth-me"] });
       qc.invalidateQueries({ queryKey: ["studio-classes", id] });
       qc.invalidateQueries({ queryKey: ["bookings"] });
     },

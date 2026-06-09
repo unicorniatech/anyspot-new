@@ -48,7 +48,7 @@ export default function Explore() {
       } else {
         toast.success("Booked! See you on the mat.");
       }
-      qc.refetchQueries({ queryKey: ["me"] });
+      qc.refetchQueries({ queryKey: ["auth-me"] });
       qc.invalidateQueries({ queryKey: ["classes"] });
       qc.invalidateQueries({ queryKey: ["bookings"] });
     },

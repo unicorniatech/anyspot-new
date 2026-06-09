@@ -1,0 +1,40 @@
+{
+  "summary": "AnySpot Phase 3a (Emergent Google Auth + route gating) end-to-end testing. Backend: created /app/backend/tests/conftest.py (mongo + primary/secondary user fixtures with Bearer-token clients) and /app/backend/tests/test_phase3_auth.py (25 cases). 25/25 PASS covering: POST /api/auth/session (invalid session_id->401, missing payload->422), GET /api/auth/me (unauth->401, invalid bearer->401, valid bearer returns {user_id,email,name,picture,credits,created_at} with no _id, expired session->401), POST /api/auth/logout deletes user_sessions row and subsequent /api/auth/me with same token->401, all member endpoints (/api/me, GET/POST /api/bookings, /api/bookings/{id}/cancel) return 401 unauth, all /api/partner/* (overview/studios/classes/POST/PATCH/DELETE) return 401 unauth, public endpoints (/api/studios, /api/studios/{id}, /api/studios/{id}/classes, /api/classes) stay open, booking flow uses authed user (credits deducted from authed user, duplicate->400, cancel refunds, two separate Bearer users do NOT see each other's bookings), and waitlist auto-promotion across user_ids works (primary cancels confirmed, secondary's waitlist booking is promoted, secondary credits deducted). Legacy Phase 1/2 tests test_anyspot.py and test_anyspot_partner.py were DELETED (they hardcoded user_id='demo-user' which the new startup wipes — they are fully superseded by test_phase3_auth.py). Frontend: 12/12 Playwright checks PASS covering /login renders google-signin-btn with 'Continue with Google' text + back-to-home, clicking google-signin-btn issues a navigation request to https://auth.emergentagent.com/?redirect=<origin>/dashboard (intercepted via page.route), unauth header shows signin-btn only, /dashboard and /partner without auth redirect to /login, with session_token cookie set on domain vitality-mvp.preview.emergentagent.com (httpOnly, secure, sameSite=None) the header switches to user-menu-btn + credit-pill ('24 Credits'), /dashboard and /partner load, avatar dropdown contains menu-dashboard + menu-partner + menu-logout, /dashboard#session_id=fake_invalid redirects to /login (Emergent /session-data 401 path), clicking menu-logout reverts header to signin-btn and /dashboard is once again gated to /login. No backend or frontend issues found.",
+  "backend_issues": { "critical": [], "minor": [] },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/conftest.py",
+    "/app/backend/tests/test_phase3_auth.py",
+    "/app/test_reports/pytest/phase3_auth.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "server.py is now 652 lines — at the soft 700-line limit. Splitting into modules (auth.py, partner.py, public.py, seed.py) before Phase 3b is strongly recommended; routes + models + seed + auth in one file are starting to obscure responsibilities.",
+    "ensure_seed() runs once at startup but the startup hook ALSO unconditionally rewrites every classes row's spots_left back to capacity and waitlist_count to 0 on every process boot. This silently destroys live booking state if the backend restarts mid-day in production (e.g., 10 confirmed bookings vanish from spots_left accounting). Fine for dev/MVP, but flag as a HIGH-severity follow-up before Phase 4.",
+    "/api/auth/session sets the session_token cookie with httponly+secure+samesite=none — correct for the cross-site Emergent OAuth bounce. However it does NOT verify uniqueness of session_token, so a malicious Emergent response that reuses an existing token would silently collide. Add a unique index on user_sessions.session_token (and an index on expires_at for TTL cleanup).",
+    "get_current_user looks up the session, then the user, with two awaits per protected request. Acceptable, but cache by token (or denormalize user fields onto user_sessions) once partner RBAC lands.",
+    "auth_logout calls response.delete_cookie() but the cookie was set with samesite='none' — delete_cookie does pass that through, OK. Confirmed in the Playwright test that the header reverts to signin-btn after menu-logout (cookie cleared on the response).",
+    "/api/partner/* is currently authed-but-not-role-gated: any logged-in member can hit /api/partner/overview etc. The product spec for Phase 3a says 'any logged-in user can access /partner (Phase 3 will introduce real partner ownership/RBAC)' — so this is expected, but please add a TODO/ticket so it doesn't ship to prod.",
+    "AuthProvider's `skip` flag is evaluated once at mount via window.location.hash; React Router transitions that change the hash without remount would not re-evaluate. AuthCallback is a dedicated route so this is fine in practice, but a useLocation-driven check would be more robust.",
+    "Login.jsx hardcodes the OAuth target 'https://auth.emergentagent.com/?redirect=' — this matches the Emergent playbook contract, so do NOT move to env. Verified by Playwright that the click triggers a request to that exact origin with the correct redirect query param.",
+    "All endpoints exclude MongoDB _id via projection; UUID-based ids used throughout — good.",
+    "All required data-testids present and matched: google-signin-btn, signin-btn, user-menu-btn, credit-pill, menu-dashboard, menu-partner, menu-logout, back-to-home, site-header."
+  ],
+  "updated_files": [
+    "/app/backend/tests/conftest.py (new — shared mongo + bearer-auth fixtures)",
+    "/app/backend/tests/test_phase3_auth.py (new — 25 auth + gating + isolation tests)",
+    "/app/backend/tests/test_anyspot.py (DELETED — legacy demo-user assumptions superseded)",
+    "/app/backend/tests/test_anyspot_partner.py (DELETED — same)"
+  ],
+  "success_rate": { "backend": "100% (25/25)", "frontend": "100% (12/12 flows)" },
+  "test_credentials": "Per /app/memory/test_credentials.md — Emergent Google Auth (no app-managed passwords). Automated tests synthesize users + sessions directly via the mongosh snippet from /app/auth_testing.md; in-test users are prefixed TEST_user_/TEST_session_ and cleaned up in fixture teardown.",
+  "seed_data_creation": "primary_user / secondary_user pytest fixtures insert into users + user_sessions (cleanup on yield); one ad-hoc FE Playwright session (TEST_fe_user_*) was created via mongosh for the browser test and removed post-run.",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Phase 3a auth gating fully verified. Re-run: `REACT_APP_BACKEND_URL=https://vitality-mvp.preview.emergentagent.com MONGO_URL=mongodb://localhost:27017 DB_NAME=test_database pytest backend/tests/ -v` (env vars are required — conftest does NOT hardcode them, and pytest does NOT auto-load /app/frontend/.env). For FE Playwright tests, create a Mongo user+session per /app/auth_testing.md and add it as a cookie BEFORE page.goto (domain must be vitality-mvp.preview.emergentagent.com, httpOnly+secure+sameSite=None). When Phase 3b adds partner RBAC, expand TestPartnerAuthGate to assert non-partner users get 403 (currently they get 200).",
+  "rca of the issue": "N/A — no issues found this iteration."
+}

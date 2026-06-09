@@ -1,9 +1,10 @@
-from fastapi import FastAPI, APIRouter, HTTPException
+from fastapi import FastAPI, APIRouter, HTTPException, Request, Response, Depends
 from dotenv import load_dotenv
 from starlette.middleware.cors import CORSMiddleware
 from motor.motor_asyncio import AsyncIOMotorClient
 import os
 import logging
+import httpx
 from pathlib import Path
 from pydantic import BaseModel, Field, ConfigDict
 from typing import List, Optional
@@ -71,13 +72,14 @@ class Booking(BaseModel):
     status: str = "confirmed"  # confirmed, cancelled, completed, waitlist
     created_at: str = Field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
 
-class UserProfile(BaseModel):
+class User(BaseModel):
     model_config = ConfigDict(extra="ignore")
-    id: str = "demo-user"
-    name: str = "Alex Rivera"
-    email: str = "alex@anyspot.com"
+    user_id: str
+    email: str
+    name: str
+    picture: Optional[str] = ""
     credits: int = 24
-    avatar: str = "https://images.pexels.com/photos/6739935/pexels-photo-6739935.jpeg"
+    created_at: str = Field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
 
 class BookingCreate(BaseModel):
     class_id: str
@@ -232,15 +234,112 @@ async def ensure_seed():
                 class_docs.append(fc.model_dump())
     await db.classes.insert_many(class_docs)
 
-    # Seed demo user
-    if not await db.users.find_one({"id": "demo-user"}):
-        await db.users.insert_one(UserProfile().model_dump())
+# ---------------- Auth ----------------
+
+EMERGENT_SESSION_DATA_URL = "https://demobackend.emergentagent.com/auth/v1/env/oauth/session-data"
+
+async def get_current_user(request: Request) -> dict:
+    """Resolve current user from session_token cookie OR Authorization Bearer header."""
+    token = request.cookies.get("session_token")
+    if not token:
+        auth = request.headers.get("authorization") or request.headers.get("Authorization")
+        if auth and auth.lower().startswith("bearer "):
+            token = auth.split(" ", 1)[1].strip()
+    if not token:
+        raise HTTPException(status_code=401, detail="Not authenticated")
+
+    session = await db.user_sessions.find_one({"session_token": token}, {"_id": 0})
+    if not session:
+        raise HTTPException(status_code=401, detail="Invalid session")
+
+    expires_at = session["expires_at"]
+    if isinstance(expires_at, str):
+        expires_at = datetime.fromisoformat(expires_at)
+    if expires_at.tzinfo is None:
+        expires_at = expires_at.replace(tzinfo=timezone.utc)
+    if expires_at < datetime.now(timezone.utc):
+        raise HTTPException(status_code=401, detail="Session expired")
+
+    user = await db.users.find_one({"user_id": session["user_id"]}, {"_id": 0})
+    if not user:
+        raise HTTPException(status_code=401, detail="User not found")
+    return user
+
+class SessionExchange(BaseModel):
+    session_id: str
 
 # ---------------- Routes ----------------
 
 @api_router.get("/")
 async def root():
     return {"message": "AnySpot API"}
+
+@api_router.post("/auth/session")
+async def auth_session(payload: SessionExchange, response: Response):
+    async with httpx.AsyncClient(timeout=15) as h:
+        r = await h.get(
+            EMERGENT_SESSION_DATA_URL,
+            headers={"X-Session-ID": payload.session_id},
+        )
+    if r.status_code != 200:
+        raise HTTPException(status_code=401, detail="Could not exchange session")
+    data = r.json()
+
+    email = data.get("email")
+    name = data.get("name", "")
+    picture = data.get("picture", "")
+    session_token = data.get("session_token")
+    if not email or not session_token:
+        raise HTTPException(status_code=401, detail="Invalid session data")
+
+    user = await db.users.find_one({"email": email}, {"_id": 0})
+    if not user:
+        user_id = f"user_{uuid.uuid4().hex[:12]}"
+        user = User(user_id=user_id, email=email, name=name, picture=picture).model_dump()
+        await db.users.insert_one(user)
+    else:
+        # Refresh name/picture if changed
+        await db.users.update_one(
+            {"user_id": user["user_id"]},
+            {"$set": {"name": name or user["name"], "picture": picture or user.get("picture", "")}},
+        )
+        user["name"] = name or user["name"]
+        user["picture"] = picture or user.get("picture", "")
+
+    expires_at = datetime.now(timezone.utc) + timedelta(days=7)
+    await db.user_sessions.insert_one({
+        "user_id": user["user_id"],
+        "session_token": session_token,
+        "expires_at": expires_at.isoformat(),
+        "created_at": datetime.now(timezone.utc).isoformat(),
+    })
+
+    response.set_cookie(
+        key="session_token",
+        value=session_token,
+        max_age=7 * 24 * 60 * 60,
+        httponly=True,
+        secure=True,
+        samesite="none",
+        path="/",
+    )
+    return {"user": user}
+
+@api_router.get("/auth/me")
+async def auth_me(user: dict = Depends(get_current_user)):
+    return user
+
+@api_router.post("/auth/logout")
+async def auth_logout(request: Request, response: Response):
+    token = request.cookies.get("session_token")
+    if not token:
+        auth = request.headers.get("authorization") or request.headers.get("Authorization")
+        if auth and auth.lower().startswith("bearer "):
+            token = auth.split(" ", 1)[1].strip()
+    if token:
+        await db.user_sessions.delete_one({"session_token": token})
+    response.delete_cookie("session_token", path="/", samesite="none", secure=True)
+    return {"ok": True}
 
 @api_router.get("/studios", response_model=List[Studio])
 async def list_studios():
@@ -299,34 +398,24 @@ async def get_class(class_id: str):
         raise HTTPException(status_code=404, detail="Class not found")
     return doc
 
-@api_router.get("/me", response_model=UserProfile)
-async def get_me():
-    doc = await db.users.find_one({"id": "demo-user"}, {"_id": 0})
-    if not doc:
-        u = UserProfile()
-        await db.users.insert_one(u.model_dump())
-        return u
-    return doc
+@api_router.get("/me", response_model=User)
+async def get_me(user: dict = Depends(get_current_user)):
+    return user
 
 @api_router.get("/bookings", response_model=List[Booking])
-async def list_bookings():
-    docs = await db.bookings.find({"user_id": "demo-user"}, {"_id": 0}).sort("start_time", -1).to_list(100)
+async def list_bookings(user: dict = Depends(get_current_user)):
+    docs = await db.bookings.find({"user_id": user["user_id"]}, {"_id": 0}).sort("start_time", -1).to_list(100)
     return docs
 
 @api_router.post("/bookings", response_model=Booking)
-async def create_booking(payload: BookingCreate):
+async def create_booking(payload: BookingCreate, user: dict = Depends(get_current_user)):
     cls = await db.classes.find_one({"id": payload.class_id}, {"_id": 0})
     if not cls:
         raise HTTPException(status_code=404, detail="Class not found")
 
-    user = await db.users.find_one({"id": "demo-user"}, {"_id": 0})
-    if not user:
-        user = UserProfile().model_dump()
-        await db.users.insert_one(user)
-
     # Prevent duplicate booking (confirmed or waitlist)
     existing = await db.bookings.find_one({
-        "user_id": "demo-user",
+        "user_id": user["user_id"],
         "class_id": payload.class_id,
         "status": {"$in": ["confirmed", "waitlist"]},
     })
@@ -338,7 +427,7 @@ async def create_booking(payload: BookingCreate):
         raise HTTPException(status_code=400, detail="Not enough credits")
 
     booking = Booking(
-        user_id="demo-user",
+        user_id=user["user_id"],
         class_id=cls["id"],
         class_title=cls["title"],
         studio_name=cls["studio_name"],
@@ -352,13 +441,13 @@ async def create_booking(payload: BookingCreate):
     if is_waitlist:
         await db.classes.update_one({"id": cls["id"]}, {"$inc": {"waitlist_count": 1}})
     else:
-        await db.users.update_one({"id": "demo-user"}, {"$inc": {"credits": -cls["credits"]}})
+        await db.users.update_one({"user_id": user["user_id"]}, {"$inc": {"credits": -cls["credits"]}})
         await db.classes.update_one({"id": cls["id"]}, {"$inc": {"spots_left": -1}})
     return booking
 
 @api_router.post("/bookings/{booking_id}/cancel", response_model=Booking)
-async def cancel_booking(booking_id: str):
-    booking = await db.bookings.find_one({"id": booking_id, "user_id": "demo-user"}, {"_id": 0})
+async def cancel_booking(booking_id: str, user: dict = Depends(get_current_user)):
+    booking = await db.bookings.find_one({"id": booking_id, "user_id": user["user_id"]}, {"_id": 0})
     if not booking:
         raise HTTPException(status_code=404, detail="Booking not found")
     if booking["status"] not in ("confirmed", "waitlist"):
@@ -372,7 +461,7 @@ async def cancel_booking(booking_id: str):
         return booking
 
     # Confirmed cancellation: refund + restore spot
-    await db.users.update_one({"id": "demo-user"}, {"$inc": {"credits": booking["credits"]}})
+    await db.users.update_one({"user_id": user["user_id"]}, {"$inc": {"credits": booking["credits"]}})
     await db.classes.update_one({"id": booking["class_id"]}, {"$inc": {"spots_left": 1}})
 
     # Promote earliest waitlist booking (any user) if any
@@ -382,10 +471,10 @@ async def cancel_booking(booking_id: str):
         sort=[("created_at", 1)],
     )
     if promote:
-        promoted_user = await db.users.find_one({"id": promote["user_id"]}, {"_id": 0})
+        promoted_user = await db.users.find_one({"user_id": promote["user_id"]}, {"_id": 0})
         if promoted_user and promoted_user["credits"] >= promote["credits"]:
             await db.bookings.update_one({"id": promote["id"]}, {"$set": {"status": "confirmed"}})
-            await db.users.update_one({"id": promote["user_id"]}, {"$inc": {"credits": -promote["credits"]}})
+            await db.users.update_one({"user_id": promote["user_id"]}, {"$inc": {"credits": -promote["credits"]}})
             await db.classes.update_one(
                 {"id": booking["class_id"]},
                 {"$inc": {"spots_left": -1, "waitlist_count": -1}},
@@ -398,12 +487,12 @@ async def cancel_booking(booking_id: str):
 # For Phase 2 we treat a single "demo partner" who owns ALL seeded studios.
 
 @api_router.get("/partner/studios", response_model=List[Studio])
-async def partner_studios():
+async def partner_studios(_: dict = Depends(get_current_user)):
     docs = await db.studios.find({}, {"_id": 0}).to_list(100)
     return docs
 
 @api_router.get("/partner/overview")
-async def partner_overview():
+async def partner_overview(_: dict = Depends(get_current_user)):
     now = datetime.now(timezone.utc)
     week_ago = (now - timedelta(days=7)).isoformat()
     month_ago = (now - timedelta(days=30)).isoformat()
@@ -462,7 +551,7 @@ async def partner_overview():
     }
 
 @api_router.get("/partner/classes", response_model=List[FitClass])
-async def partner_list_classes(studio_id: Optional[str] = None, upcoming: bool = True):
+async def partner_list_classes(studio_id: Optional[str] = None, upcoming: bool = True, _: dict = Depends(get_current_user)):
     query = {}
     if studio_id:
         query["studio_id"] = studio_id
@@ -479,7 +568,7 @@ async def partner_class_roster(class_id: str):
     return docs
 
 @api_router.post("/partner/classes", response_model=FitClass)
-async def partner_create_class(payload: ClassCreate):
+async def partner_create_class(payload: ClassCreate, _: dict = Depends(get_current_user)):
     studio = await db.studios.find_one({"id": payload.studio_id}, {"_id": 0})
     if not studio:
         raise HTTPException(status_code=404, detail="Studio not found")
@@ -501,7 +590,7 @@ async def partner_create_class(payload: ClassCreate):
     return fc
 
 @api_router.patch("/partner/classes/{class_id}", response_model=FitClass)
-async def partner_update_class(class_id: str, payload: ClassUpdate):
+async def partner_update_class(class_id: str, payload: ClassUpdate, _: dict = Depends(get_current_user)):
     existing = await db.classes.find_one({"id": class_id}, {"_id": 0})
     if not existing:
         raise HTTPException(status_code=404, detail="Class not found")
@@ -517,7 +606,7 @@ async def partner_update_class(class_id: str, payload: ClassUpdate):
     return updated
 
 @api_router.delete("/partner/classes/{class_id}")
-async def partner_delete_class(class_id: str):
+async def partner_delete_class(class_id: str, _: dict = Depends(get_current_user)):
     existing = await db.classes.find_one({"id": class_id}, {"_id": 0})
     if not existing:
         raise HTTPException(status_code=404, detail="Class not found")
@@ -528,7 +617,7 @@ async def partner_delete_class(class_id: str):
     for b in active:
         await db.bookings.update_one({"id": b["id"]}, {"$set": {"status": "cancelled"}})
         if b["status"] == "confirmed":
-            await db.users.update_one({"id": b["user_id"]}, {"$inc": {"credits": b["credits"]}})
+            await db.users.update_one({"user_id": b["user_id"]}, {"$inc": {"credits": b["credits"]}})
     await db.classes.delete_one({"id": class_id})
     return {"ok": True, "cancelled": len(active)}
 
@@ -549,6 +638,11 @@ logger = logging.getLogger(__name__)
 async def on_startup():
     try:
         await ensure_seed()
+        # Clean legacy demo-user data from Phase 1/2 (pre-auth)
+        await db.users.delete_many({"id": "demo-user"})
+        await db.bookings.delete_many({"user_id": "demo-user"})
+        # Reset spots_left & waitlist_count to capacity in case orphan bookings affected them
+        await db.classes.update_many({}, [{"$set": {"spots_left": "$capacity", "waitlist_count": 0}}])
     except Exception as e:
         logger.exception("Seed failed: %s", e)
 

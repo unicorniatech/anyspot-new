@@ -1,5 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { api } from "../lib/api";
+import { useAuth } from "../lib/auth";
 import { Coins, Calendar, History, X, Sparkles, MapPin, Clock } from "lucide-react";
 import { toast, Toaster } from "sonner";
 import { useState } from "react";
@@ -17,7 +18,7 @@ export default function Dashboard() {
   const qc = useQueryClient();
   const [tab, setTab] = useState("upcoming");
 
-  const { data: me } = useQuery({ queryKey: ["me"], queryFn: api.me });
+  const { user: me } = useAuth();
   const { data: bookings = [] } = useQuery({ queryKey: ["bookings"], queryFn: api.bookings });
 
   const cancel = useMutation({
@@ -25,7 +26,7 @@ export default function Dashboard() {
     onSuccess: () => {
       toast.success("Booking cancelled, credits refunded.");
       qc.invalidateQueries({ queryKey: ["bookings"] });
-      qc.invalidateQueries({ queryKey: ["me"] });
+      qc.refetchQueries({ queryKey: ["auth-me"] });
     },
     onError: (e) => toast.error(e?.response?.data?.detail || "Couldn't cancel"),
   });

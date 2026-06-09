@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { api } from "../lib/api";
 import {
@@ -46,11 +46,9 @@ export default function ClassFormDialog({ open, onOpenChange, editing = null }) 
     queryFn: api.partnerStudios,
   });
 
-  const [form, setForm] = useState(emptyForm);
-
-  useEffect(() => {
+  const [form, setForm] = useState(() => {
     if (editing) {
-      setForm({
+      return {
         studio_id: editing.studio_id,
         title: editing.title,
         instructor: editing.instructor,
@@ -61,11 +59,10 @@ export default function ClassFormDialog({ open, onOpenChange, editing = null }) 
         capacity: editing.capacity,
         start_time: toLocalInput(editing.start_time),
         image: editing.image || "",
-      });
-    } else if (open) {
-      setForm({ ...emptyForm, studio_id: studios[0]?.id || "" });
+      };
     }
-  }, [editing, open, studios]);
+    return { ...emptyForm, studio_id: studios[0]?.id || "" };
+  });
 
   const save = useMutation({
     mutationFn: async () => {

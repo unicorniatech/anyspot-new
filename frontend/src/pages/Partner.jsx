@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { api } from "../lib/api";
+import { useAuth } from "../lib/auth";
 import {
   Briefcase, Plus, TrendingUp, Users, Calendar, Coins, Edit2, Trash2, ChevronRight, Sparkles,
 } from "lucide-react";
@@ -35,6 +36,7 @@ export default function Partner() {
   const [confirmDel, setConfirmDel] = useState(null); // class id
   const [rosterFor, setRosterFor] = useState(null); // class obj
 
+  const { user: authUser } = useAuth();
   const { data: overview } = useQuery({ queryKey: ["partner-overview"], queryFn: api.partnerOverview });
   const { data: classes = [] } = useQuery({
     queryKey: ["partner-classes", "upcoming"],
@@ -223,7 +225,7 @@ export default function Partner() {
                 })}
                 {classes.length === 0 && (
                   <tr>
-                    <td colSpan="6" className="px-5 py-10 text-center text-[#4A4A7A]">No upcoming classes. Hit "Add class" to publish one.</td>
+                    <td colSpan="6" className="px-5 py-10 text-center text-[#4A4A7A]">No upcoming classes. Hit &ldquo;Add class&rdquo; to publish one.</td>
                   </tr>
                 )}
               </tbody>
@@ -234,6 +236,7 @@ export default function Partner() {
 
       {/* Dialogs */}
       <ClassFormDialog
+        key={editing?.id || (open ? "new" : "closed")}
         open={open}
         onOpenChange={(v) => { setOpen(v); if (!v) setEditing(null); }}
         editing={editing}
@@ -244,7 +247,7 @@ export default function Partner() {
           <AlertDialogHeader>
             <AlertDialogTitle className="font-display text-[#0E0E52]">Delete this class?</AlertDialogTitle>
             <AlertDialogDescription>
-              All active bookings will be cancelled and credits refunded. This can't be undone.
+              All active bookings will be cancelled and credits refunded. This can&apos;t be undone.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
@@ -280,7 +283,7 @@ export default function Partner() {
                     {i + 1}
                   </div>
                   <div>
-                    <p className="text-sm text-[#0E0E52] font-medium">{r.user_id === "demo-user" ? "Alex Rivera (you)" : r.user_id}</p>
+                    <p className="text-sm text-[#0E0E52] font-medium">{authUser && r.user_id === authUser.user_id ? `${authUser.name} (you)` : "Member"}</p>
                     <p className="text-xs text-[#4A4A7A]">Booked {fmtDate(r.created_at)}</p>
                   </div>
                 </div>
