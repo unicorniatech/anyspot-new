@@ -28,10 +28,10 @@ export default function Landing() {
               <Sparkles size={12} /> One pass · Every studio
             </span>
             <h1 className="font-display text-5xl md:text-6xl lg:text-7xl mt-6 leading-[0.95] tracking-tighter font-semibold text-[#0E0E52]">
-              Move
-              <span className="italic font-normal text-[#FF8552]"> anywhere</span>,
+              Move with
+              <span className="italic font-normal text-[#FF8552]"> intention</span>,
               <br />
-              with anyone.
+              anywhere.
             </h1>
             <p className="mt-6 max-w-xl text-[#4A4A7A] text-lg leading-relaxed">
               AnySpot is your single membership to the city&rsquo;s most loved
