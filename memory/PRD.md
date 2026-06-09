@@ -31,15 +31,25 @@ Build AnySpot — a boutique fitness platform (re-skin of "Vitality"). 8 screens
 - ✅ Waitlist: full classes auto-route to waitlist (no credit charge); confirmed cancel auto-promotes earliest waitlist user (deducts their credits, restores spot)
 - ✅ Explore + Dashboard reflect waitlist state in UI
 
-## Phase 3 — Backlog (priority order)
-- **P0** Auth (Emergent Google login recommended) — required before payments + multi-tenant partners
-- **P0** Stripe Checkout — purchase credit packs (test keys in env)
-- **P1** Platform Admin Panel — users, studios, transactions overview
-- **P2** Recurring class schedules (every Mon @ 7am for 8 weeks)
-- **P2** Walk waitlist until promotion succeeds (current code promotes 1 user only)
-- **P2** Reviews + ratings, push notifications, mobile polish
+## Phase 3a — Shipped (2026-06-09)
+**Goal: Real auth on protected routes; multi-user isolation.**
+- ✅ Emergent Google Auth — `/login` with Continue-with-Google CTA, OAuth bounce + `/auth/session` exchange, httpOnly secure session cookie (7-day TTL) + Bearer-header fallback for tests
+- ✅ Backend `get_current_user` dependency; all member endpoints (`/me`, `/bookings*`) and partner endpoints (`/partner/*`) require auth and use the authed `user_id`
+- ✅ Public still open: `/api/studios*`, `/api/classes*`
+- ✅ Multi-user isolation verified — two users do NOT see each other's bookings; waitlist auto-promotion works across users
+- ✅ ProtectedRoute on `/dashboard` and `/partner` (redirect to `/login`); AppRouter handles `#session_id=...` callback synchronously to avoid race conditions
+- ✅ Header: avatar dropdown (dashboard / partner / sign out) when authed; "Sign in" CTA otherwise
+- ✅ New users start with 24 free credits; auth-me cached via react-query `["auth-me"]` and refetched after every booking mutation
+
+## Phase 3b — Backlog (priority order)
+- **P0** Stripe Checkout — credit pack purchase (test keys in env)
+- **P1** Partner RBAC — link users to studio ownership (currently any logged-in user can hit `/partner`)
+- **P1** Platform Admin Panel
+- **P2** Split `server.py` into modules (auth/partner/public/seed) — file is ~650 lines
+- **P2** Mongo indexes: unique on `user_sessions.session_token`, TTL on `expires_at`
+- **P2** Walk-the-waitlist promotion (not just the first user)
 
 ## Next Action Items
-1. Confirm auth approach (Emergent Google vs JWT)
-2. Stripe credit-pack checkout
-3. Platform Admin Panel
+1. Stripe credit-pack checkout
+2. Partner ownership / RBAC
+3. Admin panel

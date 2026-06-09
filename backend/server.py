@@ -638,11 +638,12 @@ logger = logging.getLogger(__name__)
 async def on_startup():
     try:
         await ensure_seed()
-        # Clean legacy demo-user data from Phase 1/2 (pre-auth)
+        # One-time migration from pre-auth (Phase 1/2) — only if legacy demo-user data exists.
+        legacy_bookings = await db.bookings.delete_many({"user_id": "demo-user"})
         await db.users.delete_many({"id": "demo-user"})
-        await db.bookings.delete_many({"user_id": "demo-user"})
-        # Reset spots_left & waitlist_count to capacity in case orphan bookings affected them
-        await db.classes.update_many({}, [{"$set": {"spots_left": "$capacity", "waitlist_count": 0}}])
+        if legacy_bookings.deleted_count > 0:
+            # Restore class spots that the demo-user had consumed
+            await db.classes.update_many({}, [{"$set": {"spots_left": "$capacity", "waitlist_count": 0}}])
     except Exception as e:
         logger.exception("Seed failed: %s", e)
 
