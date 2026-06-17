@@ -238,15 +238,58 @@ async def ensure_seed():
 
 EMERGENT_SESSION_DATA_URL = "https://demobackend.emergentagent.com/auth/v1/env/oauth/session-data"
 
+PREVIEW_USER_ID = "preview-user"
+
+async def ensure_preview_user():
+    """Ensure a 'preview' user with credits + some bookings exists, so unauthed visits to
+    /dashboard and /partner show a real, lived-in state. Remove this once auth is enforced."""
+    existing = await db.users.find_one({"user_id": PREVIEW_USER_ID}, {"_id": 0})
+    if existing:
+        return
+    await db.users.insert_one(User(
+        user_id=PREVIEW_USER_ID,
+        email="preview@anyspot.com",
+        name="Alex Rivera",
+        picture="https://images.pexels.com/photos/6739935/pexels-photo-6739935.jpeg",
+        credits=18,
+    ).model_dump())
+
+    # Seed 3 bookings (2 confirmed + 1 waitlist) using real upcoming classes
+    now_iso = datetime.now(timezone.utc).isoformat()
+    classes = await db.classes.find(
+        {"start_time": {"$gte": now_iso}}, {"_id": 0}
+    ).sort("start_time", 1).limit(3).to_list(3)
+    for i, c in enumerate(classes):
+        status = "waitlist" if i == 2 else "confirmed"
+        await db.bookings.insert_one(Booking(
+            user_id=PREVIEW_USER_ID,
+            class_id=c["id"],
+            class_title=c["title"],
+            studio_name=c["studio_name"],
+            instructor=c["instructor"],
+            start_time=c["start_time"],
+            credits=c["credits"],
+            image=c["image"],
+            status=status,
+        ).model_dump())
+
 async def get_current_user(request: Request) -> dict:
-    """Resolve current user from session_token cookie OR Authorization Bearer header."""
+    """Resolve current user from session_token cookie OR Authorization Bearer header.
+    PREVIEW MODE: if no token is present, return the shared preview user so /dashboard
+    and /partner are viewable without auth. Remove the fallback to re-enforce auth."""
     token = request.cookies.get("session_token")
     if not token:
         auth = request.headers.get("authorization") or request.headers.get("Authorization")
         if auth and auth.lower().startswith("bearer "):
             token = auth.split(" ", 1)[1].strip()
+
     if not token:
-        raise HTTPException(status_code=401, detail="Not authenticated")
+        # PREVIEW fallback
+        user = await db.users.find_one({"user_id": PREVIEW_USER_ID}, {"_id": 0})
+        if not user:
+            await ensure_preview_user()
+            user = await db.users.find_one({"user_id": PREVIEW_USER_ID}, {"_id": 0})
+        return user
 
     session = await db.user_sessions.find_one({"session_token": token}, {"_id": 0})
     if not session:
@@ -642,8 +685,9 @@ async def on_startup():
         legacy_bookings = await db.bookings.delete_many({"user_id": "demo-user"})
         await db.users.delete_many({"id": "demo-user"})
         if legacy_bookings.deleted_count > 0:
-            # Restore class spots that the demo-user had consumed
             await db.classes.update_many({}, [{"$set": {"spots_left": "$capacity", "waitlist_count": 0}}])
+        # PREVIEW MODE: ensure a viewable demo user + bookings exist
+        await ensure_preview_user()
     except Exception as e:
         logger.exception("Seed failed: %s", e)
 
