@@ -17,6 +17,7 @@ const CATEGORIES = [
 export default function Landing() {
   const { data: studios = [] } = useQuery({ queryKey: ["studios"], queryFn: api.listStudios });
   const [q, setQ] = useState("");
+  const studioList = Array.isArray(studios) ? studios : [];
 
   return (
     <div className="bg-[#FDFDFD]">
@@ -170,10 +171,15 @@ export default function Landing() {
         </div>
 
         <div className="grid md:grid-cols-2 lg:grid-cols-12 gap-6">
-          {studios.map((s, idx) => (
+          {studioList.map((s, idx) => {
+            const categories = Array.isArray(s?.categories) ? s.categories : [];
+            const primaryCategory = categories[0] || "Studio";
+            const locationLabel = [s?.neighborhood, s?.city].filter(Boolean).join(", ") || "Location coming soon";
+            const studioId = s?.id || `studio-${idx}`;
+            return (
             <Link
-              key={s.id}
-              to={`/studio/${s.id}`}
+              key={studioId}
+              to={`/studio/${studioId}`}
               data-testid={`studio-card-${s.id}`}
               className={`group relative overflow-hidden rounded-2xl bg-white border border-[#0E0E52]/10 hover:-translate-y-1 transition-all ${
                 idx === 0 ? "lg:col-span-7 lg:row-span-2" : "lg:col-span-5"
@@ -188,7 +194,7 @@ export default function Landing() {
                 <div className="absolute inset-0 bg-gradient-to-t from-[#0E0E52]/70 via-transparent to-transparent" />
                 <div className="absolute top-4 left-4 right-4 flex justify-between">
                   <span className="anyspot-pill bg-white/90 text-[#0E0E52]">
-                    {s.categories[0]}
+                    {primaryCategory}
                   </span>
                   <span className="anyspot-pill bg-[#FF8552] text-white flex items-center gap-1">
                     <Star size={10} fill="currentColor" /> {s.rating}
@@ -197,14 +203,14 @@ export default function Landing() {
                 <div className="absolute bottom-4 left-4 right-4 text-white">
                   <p className="font-display text-2xl font-semibold">{s.name}</p>
                   <p className="text-sm text-white/80 flex items-center gap-1 mt-1">
-                    <MapPin size={12} /> {s.neighborhood}, {s.city}
+                    <MapPin size={12} /> {locationLabel}
                   </p>
                 </div>
               </div>
               <div className="p-5">
                 <p className="text-sm text-[#4A4A7A] line-clamp-2 leading-relaxed">{s.tagline}</p>
                 <div className="mt-3 flex gap-2 flex-wrap">
-                  {s.categories.slice(0, 3).map((c) => (
+                  {categories.slice(0, 3).map((c) => (
                     <span key={c} className="text-xs px-2.5 py-1 rounded-full bg-[#CBF3D2]/50 text-[#0E0E52]">
                       {c}
                     </span>
@@ -212,7 +218,8 @@ export default function Landing() {
                 </div>
               </div>
             </Link>
-          ))}
+            );
+          })}
         </div>
       </section>
 
