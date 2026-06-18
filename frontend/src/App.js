@@ -3,12 +3,14 @@ import { BrowserRouter, Routes, Route, Outlet } from "react-router-dom";
 import Header from "@/components/Header";
 import Footer from "@/components/Footer";
 import ProtectedRoute from "@/components/ProtectedRoute";
+import PublicOnlyRoute from "@/components/PublicOnlyRoute";
 import Landing from "@/pages/Landing";
 import Explore from "@/pages/Explore";
 import StudioProfile from "@/pages/StudioProfile";
 import Dashboard from "@/pages/Dashboard";
 import Partner from "@/pages/Partner";
 import Login from "@/pages/Login";
+import Signup from "@/pages/Signup";
 import AuthCallback from "@/pages/AuthCallback";
 import { AuthProvider } from "@/lib/auth";
 
@@ -27,7 +29,22 @@ function Layout() {
 function AppRouter() {
   return (
     <Routes>
-      <Route path="/login" element={<Login />} />
+      <Route
+        path="/login"
+        element={
+          <PublicOnlyRoute>
+            <Login />
+          </PublicOnlyRoute>
+        }
+      />
+      <Route
+        path="/signup"
+        element={
+          <PublicOnlyRoute>
+            <Signup />
+          </PublicOnlyRoute>
+        }
+      />
       <Route path="/auth/callback" element={<AuthCallback />} />
       <Route element={<Layout />}>
         <Route path="/" element={<Landing />} />

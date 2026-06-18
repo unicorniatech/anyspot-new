@@ -23,6 +23,7 @@ export default function Header() {
   const [open, setOpen] = useState(false);
   const loc = useLocation();
   const navigate = useNavigate();
+  const visibleNavItems = navItems.filter((n) => !n.protected || Boolean(user));
 
   const onLogout = async () => {
     await logout();
@@ -49,7 +50,7 @@ export default function Header() {
         </Link>
 
         <nav className="hidden md:flex items-center gap-1">
-          {navItems.map((n) => (
+          {visibleNavItems.map((n) => (
             <NavLink
               key={n.to}
               to={n.to}
@@ -117,13 +118,22 @@ export default function Header() {
               </DropdownMenuContent>
             </DropdownMenu>
           ) : !loading ? (
-            <Link
-              to="/login"
-              data-testid="signin-btn"
-              className="bg-[#FF8552] text-white px-5 py-2 rounded-full text-sm font-medium hover:bg-[#E57545] transition-colors"
-            >
-              Sign in
-            </Link>
+            <div className="flex items-center gap-2">
+              <Link
+                to="/login"
+                data-testid="signin-btn"
+                className="text-[#0E0E52] px-4 py-2 rounded-full text-sm font-medium border border-[#0E0E52]/15 hover:bg-[#0E0E52]/5 transition-colors"
+              >
+                Sign in
+              </Link>
+              <Link
+                to="/signup"
+                data-testid="signup-btn"
+                className="bg-[#FF8552] text-white px-5 py-2 rounded-full text-sm font-medium hover:bg-[#E57545] transition-colors"
+              >
+                Sign up
+              </Link>
+            </div>
           ) : null}
 
           <button
@@ -139,7 +149,7 @@ export default function Header() {
       {open && (
         <div className="md:hidden border-t border-[#0E0E52]/10 bg-white">
           <div className="px-6 py-3 flex flex-col gap-2">
-            {navItems.map((n) => (
+            {visibleNavItems.map((n) => (
               <Link
                 key={n.to}
                 to={n.to}

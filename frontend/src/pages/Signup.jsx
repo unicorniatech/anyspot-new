@@ -1,48 +1,63 @@
 import { useState } from "react";
-import { useLocation, Link, useNavigate } from "react-router-dom";
-import { Sparkles, ArrowLeft } from "lucide-react";
+import { Link, useNavigate } from "react-router-dom";
+import { ArrowLeft, Sparkles } from "lucide-react";
 import { supabase } from "../lib/supabase";
 
-export default function Login() {
-  const { state } = useLocation();
+export default function Signup() {
   const navigate = useNavigate();
-  const from = state?.from || "/dashboard";
+  const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [error, setError] = useState(state?.error || "");
+  const [error, setError] = useState("");
+  const [message, setMessage] = useState("");
   const [loading, setLoading] = useState(false);
 
-  const signInWithPassword = async (e) => {
+  const signUpWithPassword = async (e) => {
     e.preventDefault();
     setError("");
+    setMessage("");
     setLoading(true);
-    const { error: signInError } = await supabase.auth.signInWithPassword({
+
+    const redirectTo = `${window.location.origin}/auth/callback`;
+    const { data, error: signUpError } = await supabase.auth.signUp({
       email,
       password,
+      options: {
+        data: { name },
+        emailRedirectTo: redirectTo,
+      },
     });
+
     setLoading(false);
 
-    if (signInError) {
-      setError(signInError.message || "Could not sign in.");
+    if (signUpError) {
+      setError(signUpError.message || "Could not create account.");
       return;
     }
 
-    navigate(from, { replace: true });
+    if (!data?.session) {
+      setMessage("Account created. Please check your email to confirm your account, then sign in.");
+      return;
+    }
+
+    navigate("/dashboard", { replace: true });
   };
 
-  const signIn = async () => {
+  const signUpWithGoogle = async () => {
     setError("");
+    setMessage("");
     setLoading(true);
+
     const redirectTo = `${window.location.origin}/auth/callback`;
-    const { error } = await supabase.auth.signInWithOAuth({
+    const { error: oauthError } = await supabase.auth.signInWithOAuth({
       provider: "google",
       options: { redirectTo },
     });
 
     setLoading(false);
 
-    if (error) {
-      setError(error.message || "Could not start Google sign in.");
+    if (oauthError) {
+      setError(oauthError.message || "Could not start Google sign up.");
     }
   };
 
@@ -52,7 +67,7 @@ export default function Login() {
       <div className="absolute -bottom-40 -left-40 w-[420px] h-[420px] rounded-full bg-[#FF8552]/15 blur-3xl pointer-events-none" />
 
       <div className="relative max-w-md mx-auto px-6 pt-16 pb-12">
-        <Link to="/" className="inline-flex items-center gap-2 text-[#4A4A7A] hover:text-[#0E0E52] text-sm mb-12" data-testid="back-to-home">
+        <Link to="/" className="inline-flex items-center gap-2 text-[#4A4A7A] hover:text-[#0E0E52] text-sm mb-12">
           <ArrowLeft size={14} /> Back to home
         </Link>
 
@@ -63,22 +78,35 @@ export default function Login() {
           <span className="font-display text-2xl text-[#0E0E52] font-semibold">AnySpot</span>
         </div>
 
-        <span className="anyspot-pill bg-[#CBF3D2] text-[#0E0E52]">Welcome back</span>
+        <span className="anyspot-pill bg-[#CBF3D2] text-[#0E0E52]">Get started</span>
         <h1 className="font-display text-4xl md:text-5xl mt-4 tracking-tighter font-semibold text-[#0E0E52] leading-[1.05]">
-          Sign in to move<br />
-          <span className="italic text-[#FF8552]">anywhere</span>.
+          Create your<br />
+          <span className="italic text-[#FF8552]">AnySpot account</span>
         </h1>
         <p className="mt-5 text-[#4A4A7A] leading-relaxed">
-          One pass to every boutique studio. Sign in with email or Google.
+          Join now and unlock access to classes across studios.
         </p>
 
         {error && (
-          <p className="mt-6 px-4 py-3 rounded-xl bg-[#FF8552]/10 text-[#FF8552] text-sm" data-testid="login-error">
+          <p className="mt-6 px-4 py-3 rounded-xl bg-[#FF8552]/10 text-[#FF8552] text-sm">
             {error}
           </p>
         )}
+        {message && (
+          <p className="mt-6 px-4 py-3 rounded-xl bg-[#CBF3D2]/60 text-[#0E0E52] text-sm">
+            {message}
+          </p>
+        )}
 
-        <form onSubmit={signInWithPassword} className="mt-8 space-y-3">
+        <form onSubmit={signUpWithPassword} className="mt-8 space-y-3">
+          <input
+            type="text"
+            required
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            placeholder="Full name"
+            className="w-full rounded-2xl border border-[#0E0E52]/15 px-4 py-3 focus:outline-none focus:ring-2 focus:ring-[#CBF3D2]"
+          />
           <input
             type="email"
             required
@@ -90,6 +118,7 @@ export default function Login() {
           <input
             type="password"
             required
+            minLength={6}
             value={password}
             onChange={(e) => setPassword(e.target.value)}
             placeholder="Password"
@@ -100,13 +129,12 @@ export default function Login() {
             disabled={loading}
             className="w-full bg-[#0E0E52] text-white py-3 rounded-full font-medium hover:bg-[#FF8552] transition-colors disabled:opacity-60"
           >
-            {loading ? "Signing in..." : "Sign in"}
+            {loading ? "Creating account..." : "Create account"}
           </button>
         </form>
 
         <button
-          data-testid="google-signin-btn"
-          onClick={signIn}
+          onClick={signUpWithGoogle}
           disabled={loading}
           className="mt-3 w-full border border-[#0E0E52]/20 text-[#0E0E52] py-3 rounded-full font-medium hover:bg-[#0E0E52]/5 transition-colors flex items-center justify-center gap-3 disabled:opacity-60"
         >
@@ -120,12 +148,7 @@ export default function Login() {
         </button>
 
         <p className="mt-4 text-sm text-[#4A4A7A] text-center">
-          New here? <Link to="/signup" className="text-[#0E0E52] font-medium hover:text-[#FF8552]">Create an account</Link>
-        </p>
-
-        <p className="mt-6 text-xs text-[#4A4A7A] text-center">
-          By signing in you agree to our Terms &amp; Privacy. New members get
-          24 free credits.
+          Already have an account? <Link to="/login" className="text-[#0E0E52] font-medium hover:text-[#FF8552]">Sign in</Link>
         </p>
       </div>
     </div>

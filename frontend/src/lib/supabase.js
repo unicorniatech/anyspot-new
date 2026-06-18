@@ -13,6 +13,16 @@ if (!hasSupabaseConfig) {
 const fallbackSupabase = {
   auth: {
     getSession: async () => ({ data: { session: null }, error: null }),
+    signInWithPassword: async () => {
+      // eslint-disable-next-line no-console
+      console.error("Supabase is not configured. Add REACT_APP_SUPABASE_URL and REACT_APP_SUPABASE_ANON_KEY.");
+      return { data: null, error: new Error("Supabase is not configured") };
+    },
+    signUp: async () => {
+      // eslint-disable-next-line no-console
+      console.error("Supabase is not configured. Add REACT_APP_SUPABASE_URL and REACT_APP_SUPABASE_ANON_KEY.");
+      return { data: null, error: new Error("Supabase is not configured") };
+    },
     signInWithOAuth: async () => {
       // eslint-disable-next-line no-console
       console.error("Supabase is not configured. Add REACT_APP_SUPABASE_URL and REACT_APP_SUPABASE_ANON_KEY.");

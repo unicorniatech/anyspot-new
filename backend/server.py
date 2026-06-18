@@ -22,6 +22,7 @@ load_dotenv(ROOT_DIR / '.env')
 SUPABASE_URL = os.environ.get('SUPABASE_URL')
 SUPABASE_SERVICE_ROLE_KEY = os.environ.get('SUPABASE_SERVICE_ROLE_KEY')
 SUPABASE_ANON_KEY = os.environ.get('SUPABASE_ANON_KEY')
+AUTH_PREVIEW_MODE = os.environ.get('AUTH_PREVIEW_MODE', 'false').lower() == 'true'
 
 client = None
 if SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY:
@@ -342,12 +343,13 @@ async def get_current_user(request: Request) -> dict:
             token = auth.split(" ", 1)[1].strip()
 
     if not token:
-        # PREVIEW fallback
-        user = await db.users.find_one({"user_id": PREVIEW_USER_ID}, {"_id": 0})
-        if not user:
-            await ensure_preview_user()
+        if AUTH_PREVIEW_MODE:
             user = await db.users.find_one({"user_id": PREVIEW_USER_ID}, {"_id": 0})
-        return user
+            if not user:
+                await ensure_preview_user()
+                user = await db.users.find_one({"user_id": PREVIEW_USER_ID}, {"_id": 0})
+            return user
+        raise HTTPException(status_code=401, detail="Not authenticated")
 
     # Prefer Supabase JWT auth when token is a bearer JWT
     supa = await get_supabase_user_from_token(token)
@@ -1029,8 +1031,9 @@ async def on_startup():
         await db.users.delete_many({"id": "demo-user"})
         if legacy_bookings.deleted_count > 0:
             await db.classes.update_many({}, [{"$set": {"spots_left": "$capacity", "waitlist_count": 0}}])
-        # PREVIEW MODE: ensure a viewable demo user + bookings exist
-        await ensure_preview_user()
+        # Optional preview mode for unauthenticated demos
+        if AUTH_PREVIEW_MODE:
+            await ensure_preview_user()
     except Exception as e:
         logger.exception("Seed failed: %s", e)
 
