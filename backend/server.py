@@ -1,22 +1,37 @@
 from fastapi import FastAPI, APIRouter, HTTPException, Request, Response, Depends
 from dotenv import load_dotenv
 from starlette.middleware.cors import CORSMiddleware
-from motor.motor_asyncio import AsyncIOMotorClient
 import os
 import logging
 import httpx
 from pathlib import Path
 from pydantic import BaseModel, Field, ConfigDict
-from typing import List, Optional
+from typing import Any, Dict, List, Optional
 import uuid
 from datetime import datetime, timezone, timedelta
+from supabase_mongo_adapter import create_supabase_db
+
+try:
+    from motor.motor_asyncio import AsyncIOMotorClient
+except Exception:
+    AsyncIOMotorClient = None
 
 ROOT_DIR = Path(__file__).parent
 load_dotenv(ROOT_DIR / '.env')
 
-mongo_url = os.environ['MONGO_URL']
-client = AsyncIOMotorClient(mongo_url)
-db = client[os.environ['DB_NAME']]
+SUPABASE_URL = os.environ.get('SUPABASE_URL')
+SUPABASE_SERVICE_ROLE_KEY = os.environ.get('SUPABASE_SERVICE_ROLE_KEY')
+SUPABASE_ANON_KEY = os.environ.get('SUPABASE_ANON_KEY')
+
+client = None
+if SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY:
+    db = create_supabase_db(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY)
+else:
+    if AsyncIOMotorClient is None:
+        raise RuntimeError('Mongo fallback unavailable and SUPABASE_URL/SUPABASE_SERVICE_ROLE_KEY not set')
+    mongo_url = os.environ['MONGO_URL']
+    client = AsyncIOMotorClient(mongo_url)
+    db = client[os.environ['DB_NAME']]
 
 app = FastAPI()
 api_router = APIRouter(prefix="/api")
@@ -89,9 +104,15 @@ class ClassCreate(BaseModel):
     title: str
     instructor: Optional[str] = None
     category: str
+    level: Optional[str] = None
+    trainer_user_id: Optional[str] = None
     description: str = ""
     duration_min: int = 60
     credits: int = 2
+    price_czk: Optional[int] = None
+    cancellation_hours: Optional[int] = None
+    repeat_weekly: bool = False
+    repeat_days: List[int] = []
     start_time: str
     image: Optional[str] = None
     capacity: int = 12
@@ -100,12 +121,49 @@ class ClassUpdate(BaseModel):
     title: Optional[str] = None
     instructor: Optional[str] = None
     category: Optional[str] = None
+    level: Optional[str] = None
+    trainer_user_id: Optional[str] = None
     description: Optional[str] = None
     duration_min: Optional[int] = None
     credits: Optional[int] = None
+    price_czk: Optional[int] = None
+    cancellation_hours: Optional[int] = None
+    repeat_weekly: Optional[bool] = None
+    repeat_days: Optional[List[int]] = None
     start_time: Optional[str] = None
     image: Optional[str] = None
     capacity: Optional[int] = None
+
+
+class StudioRegistrationRequest(BaseModel):
+    studio_name: str
+    address: str
+    contact_name: str
+    contact_phone: str
+    contact_email: str
+    password: str
+    company_id: Optional[str] = None
+    agree_terms: bool
+
+
+class StudioProfileOnboardingRequest(BaseModel):
+    logo_url: Optional[str] = None
+    photos: List[str] = []
+    description: str
+    studio_types: List[str]
+    opening_hours: Dict[str, Any] = {}
+
+
+class StudioPaymentSetupRequest(BaseModel):
+    stripe_account_id: Optional[str] = None
+
+
+class TeamInviteRequest(BaseModel):
+    emails: List[str]
+
+
+class DuplicateClassRequest(BaseModel):
+    start_time: str
 
 # ---------------- Seed Data ----------------
 
@@ -291,6 +349,41 @@ async def get_current_user(request: Request) -> dict:
             user = await db.users.find_one({"user_id": PREVIEW_USER_ID}, {"_id": 0})
         return user
 
+    # Prefer Supabase JWT auth when token is a bearer JWT
+    supa = await get_supabase_user_from_token(token)
+    if supa:
+        auth_user_id = supa.get("id")
+        email = supa.get("email")
+        meta = supa.get("user_metadata") or {}
+        name = meta.get("name") or meta.get("full_name") or (email.split("@")[0] if email else "Member")
+        picture = meta.get("avatar_url") or meta.get("picture") or ""
+
+        user = None
+        if auth_user_id:
+            user = await db.users.find_one({"auth_user_id": auth_user_id}, {"_id": 0})
+        if not user and email:
+            user = await db.users.find_one({"email": email}, {"_id": 0})
+
+        if not user:
+            user_id = f"user_{uuid.uuid4().hex[:12]}"
+            user = User(user_id=user_id, email=email or f"{user_id}@local.invalid", name=name, picture=picture).model_dump()
+            if auth_user_id:
+                user["auth_user_id"] = auth_user_id
+            await db.users.insert_one(user)
+        else:
+            patch = {
+                "name": name or user.get("name", ""),
+                "picture": picture or user.get("picture", ""),
+            }
+            if auth_user_id:
+                patch["auth_user_id"] = auth_user_id
+            if email:
+                patch["email"] = email
+            await db.users.update_one({"user_id": user["user_id"]}, {"$set": patch})
+            user = await db.users.find_one({"user_id": user["user_id"]}, {"_id": 0})
+
+        return user
+
     session = await db.user_sessions.find_one({"session_token": token}, {"_id": 0})
     if not session:
         raise HTTPException(status_code=401, detail="Invalid session")
@@ -310,6 +403,60 @@ async def get_current_user(request: Request) -> dict:
 
 class SessionExchange(BaseModel):
     session_id: str
+
+
+async def create_supabase_user_signup(email: str, password: str, name: str) -> Optional[str]:
+    if not SUPABASE_URL or not SUPABASE_ANON_KEY:
+        return None
+
+    payload = {
+        "email": email,
+        "password": password,
+        "data": {"name": name},
+    }
+    headers = {
+        "apikey": SUPABASE_ANON_KEY,
+        "Content-Type": "application/json",
+    }
+
+    async with httpx.AsyncClient(timeout=15) as h:
+        r = await h.post(f"{SUPABASE_URL}/auth/v1/signup", json=payload, headers=headers)
+
+    if r.status_code >= 400:
+        try:
+            detail = r.json().get("msg") or r.json().get("message")
+        except Exception:
+            detail = r.text
+        raise HTTPException(status_code=400, detail=f"Could not create auth user: {detail}")
+
+    data = r.json() or {}
+    user = data.get("user") or {}
+    return user.get("id")
+
+
+async def get_supabase_user_from_token(token: str) -> Optional[dict]:
+    if not SUPABASE_URL:
+        return None
+    apikey = SUPABASE_ANON_KEY or SUPABASE_SERVICE_ROLE_KEY
+    if not apikey:
+        return None
+
+    headers = {
+        "apikey": apikey,
+        "Authorization": f"Bearer {token}",
+    }
+    async with httpx.AsyncClient(timeout=15) as h:
+        r = await h.get(f"{SUPABASE_URL}/auth/v1/user", headers=headers)
+    if r.status_code != 200:
+        return None
+    return r.json()
+
+
+async def get_primary_studio_for_user(user_id: str) -> Optional[dict]:
+    link = await db.studio_members.find_one({"user_id": user_id}, {"_id": 0})
+    if not link:
+        return None
+    return await db.studios.find_one({"id": link["studio_id"]}, {"_id": 0})
 
 # ---------------- Routes ----------------
 
@@ -367,6 +514,77 @@ async def auth_session(payload: SessionExchange, response: Response):
         path="/",
     )
     return {"user": user}
+
+
+@api_router.post("/studio/register")
+async def register_studio(payload: StudioRegistrationRequest):
+    if not payload.agree_terms:
+        raise HTTPException(status_code=400, detail="You must agree to terms & conditions")
+
+    existing = await db.users.find_one({"email": payload.contact_email}, {"_id": 0})
+    if existing:
+        raise HTTPException(status_code=400, detail="Email is already registered")
+
+    auth_user_id = await create_supabase_user_signup(
+        payload.contact_email,
+        payload.password,
+        payload.contact_name,
+    )
+
+    user_id = f"user_{uuid.uuid4().hex[:12]}"
+    studio_id = f"studio_{uuid.uuid4().hex[:12]}"
+
+    user = User(
+        user_id=user_id,
+        email=payload.contact_email,
+        name=payload.contact_name,
+        picture="",
+        credits=24,
+    ).model_dump()
+    if auth_user_id:
+        user["auth_user_id"] = auth_user_id
+    await db.users.insert_one(user)
+
+    studio_doc = Studio(
+        id=studio_id,
+        name=payload.studio_name,
+        tagline="",
+        city=payload.address,
+        neighborhood="",
+        cover_image=STUDIO_IMAGES[0],
+        gallery=STUDIO_IMAGES[:3],
+        vibe="",
+        amenities=[],
+        instructor_name=payload.contact_name,
+        instructor_image=INSTRUCTOR_IMAGE,
+        instructor_bio="",
+        categories=[],
+    ).model_dump()
+    studio_doc.update({
+        "address": payload.address,
+        "contact_name": payload.contact_name,
+        "contact_phone": payload.contact_phone,
+        "contact_email": payload.contact_email,
+        "company_id": payload.company_id or "",
+        "owner_user_id": user_id,
+        "onboarding_step": "profile",
+        "onboarding_completed": False,
+        "payments_active": False,
+    })
+    await db.studios.insert_one(studio_doc)
+    await db.studio_members.insert_one({
+        "studio_id": studio_id,
+        "user_id": user_id,
+        "role": "owner",
+        "created_at": datetime.now(timezone.utc).isoformat(),
+    })
+
+    return {
+        "ok": True,
+        "studio_id": studio_id,
+        "user_id": user_id,
+        "verification": "sent" if auth_user_id else "not_configured",
+    }
 
 @api_router.get("/auth/me")
 async def auth_me(user: dict = Depends(get_current_user)):
@@ -603,6 +821,103 @@ async def partner_list_classes(studio_id: Optional[str] = None, upcoming: bool =
     docs = await db.classes.find(query, {"_id": 0}).sort("start_time", 1).to_list(500)
     return docs
 
+
+@api_router.get("/partner/onboarding/status")
+async def partner_onboarding_status(user: dict = Depends(get_current_user)):
+    studio = await get_primary_studio_for_user(user["user_id"])
+    if not studio:
+        raise HTTPException(status_code=404, detail="Studio not found")
+
+    return {
+        "studio_id": studio["id"],
+        "onboarding_step": studio.get("onboarding_step", "profile"),
+        "onboarding_completed": studio.get("onboarding_completed", False),
+        "payments_active": studio.get("payments_active", False),
+    }
+
+
+@api_router.post("/partner/onboarding/profile")
+async def partner_onboarding_profile(payload: StudioProfileOnboardingRequest, user: dict = Depends(get_current_user)):
+    studio = await get_primary_studio_for_user(user["user_id"])
+    if not studio:
+        raise HTTPException(status_code=404, detail="Studio not found")
+
+    if len(payload.description) > 300:
+        raise HTTPException(status_code=400, detail="Description must be 300 characters or less")
+    if payload.photos and not (3 <= len(payload.photos) <= 5):
+        raise HTTPException(status_code=400, detail="Please upload 3 to 5 interior photos")
+
+    update_payload: Dict[str, Any] = {
+        "description": payload.description,
+        "categories": payload.studio_types,
+        "opening_hours": payload.opening_hours,
+        "onboarding_step": "payment",
+    }
+    if payload.logo_url:
+        update_payload["logo_url"] = payload.logo_url
+    if payload.photos:
+        update_payload["gallery"] = payload.photos
+        update_payload["cover_image"] = payload.photos[0]
+
+    await db.studios.update_one({"id": studio["id"]}, {"$set": update_payload})
+    updated = await db.studios.find_one({"id": studio["id"]}, {"_id": 0})
+    return {"ok": True, "studio": updated}
+
+
+@api_router.post("/partner/onboarding/payment")
+async def partner_onboarding_payment(payload: StudioPaymentSetupRequest, user: dict = Depends(get_current_user)):
+    studio = await get_primary_studio_for_user(user["user_id"])
+    if not studio:
+        raise HTTPException(status_code=404, detail="Studio not found")
+
+    await db.studios.update_one(
+        {"id": studio["id"]},
+        {
+            "$set": {
+                "stripe_account_id": payload.stripe_account_id or studio.get("stripe_account_id", ""),
+                "payments_active": bool(payload.stripe_account_id),
+                "onboarding_step": "team",
+            }
+        },
+    )
+
+    return {
+        "ok": True,
+        "payments_active": bool(payload.stripe_account_id),
+        "message": "Stripe can be fully connected later; placeholder saved.",
+    }
+
+
+@api_router.post("/partner/onboarding/team/invite")
+async def partner_onboarding_team_invite(payload: TeamInviteRequest, user: dict = Depends(get_current_user)):
+    studio = await get_primary_studio_for_user(user["user_id"])
+    if not studio:
+        raise HTTPException(status_code=404, detail="Studio not found")
+
+    emails = [e.strip().lower() for e in payload.emails if e.strip()]
+    if not emails:
+        raise HTTPException(status_code=400, detail="At least one email is required")
+
+    now = datetime.now(timezone.utc)
+    for email in emails:
+        await db.studio_team_invites.insert_one({
+            "id": str(uuid.uuid4()),
+            "studio_id": studio["id"],
+            "email": email,
+            "role": "manager",
+            "status": "pending",
+            "invited_by_user_id": user["user_id"],
+            "token": uuid.uuid4().hex,
+            "expires_at": (now + timedelta(days=7)).isoformat(),
+            "created_at": now.isoformat(),
+        })
+
+    await db.studios.update_one(
+        {"id": studio["id"]},
+        {"$set": {"onboarding_step": "completed", "onboarding_completed": True}},
+    )
+    return {"ok": True, "invited": len(emails)}
+
 @api_router.get("/partner/classes/{class_id}/roster", response_model=List[Booking])
 async def partner_class_roster(class_id: str):
     docs = await db.bookings.find(
@@ -629,7 +944,18 @@ async def partner_create_class(payload: ClassCreate, _: dict = Depends(get_curre
         spots_left=payload.capacity,
         capacity=payload.capacity,
     )
-    await db.classes.insert_one(fc.model_dump())
+    class_doc = fc.model_dump()
+    class_doc.update({
+        "level": payload.level,
+        "trainer_user_id": payload.trainer_user_id,
+        "price_czk": payload.price_czk,
+        "payout_czk": int(payload.price_czk * 0.85) if payload.price_czk else None,
+        "cancellation_hours": payload.cancellation_hours,
+        "repeat_weekly": payload.repeat_weekly,
+        "repeat_days": payload.repeat_days,
+        "status": "active",
+    })
+    await db.classes.insert_one(class_doc)
     return fc
 
 @api_router.patch("/partner/classes/{class_id}", response_model=FitClass)
@@ -647,6 +973,23 @@ async def partner_update_class(class_id: str, payload: ClassUpdate, _: dict = De
         await db.classes.update_one({"id": class_id}, {"$set": update})
     updated = await db.classes.find_one({"id": class_id}, {"_id": 0})
     return updated
+
+
+@api_router.post("/partner/classes/{class_id}/duplicate", response_model=FitClass)
+async def partner_duplicate_class(class_id: str, payload: DuplicateClassRequest, _: dict = Depends(get_current_user)):
+    existing = await db.classes.find_one({"id": class_id}, {"_id": 0})
+    if not existing:
+        raise HTTPException(status_code=404, detail="Class not found")
+
+    duplicated = dict(existing)
+    duplicated["id"] = str(uuid.uuid4())
+    duplicated["start_time"] = payload.start_time
+    duplicated["spots_left"] = duplicated.get("capacity", 12)
+    duplicated["waitlist_count"] = 0
+    duplicated["status"] = "active"
+
+    await db.classes.insert_one(duplicated)
+    return FitClass(**duplicated)
 
 @api_router.delete("/partner/classes/{class_id}")
 async def partner_delete_class(class_id: str, _: dict = Depends(get_current_user)):
@@ -693,4 +1036,5 @@ async def on_startup():
 
 @app.on_event("shutdown")
 async def shutdown_db_client():
-    client.close()
+    if client is not None:
+        client.close()

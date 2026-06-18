@@ -1,13 +1,20 @@
 import { useLocation, Link } from "react-router-dom";
 import { Sparkles, ArrowLeft } from "lucide-react";
+import { supabase } from "../lib/supabase";
 
 export default function Login() {
   const { state } = useLocation();
 
-  // REMINDER: DO NOT HARDCODE THE URL, OR ADD ANY FALLBACKS OR REDIRECT URLS, THIS BREAKS THE AUTH
-  const signIn = () => {
-    const redirectUrl = window.location.origin + "/dashboard";
-    window.location.href = `https://auth.emergentagent.com/?redirect=${encodeURIComponent(redirectUrl)}`;
+  const signIn = async () => {
+    const redirectTo = `${window.location.origin}/auth/callback`;
+    const { error } = await supabase.auth.signInWithOAuth({
+      provider: "google",
+      options: { redirectTo },
+    });
+
+    if (error) {
+      console.error(error);
+    }
   };
 
   return (

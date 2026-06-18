@@ -1,5 +1,5 @@
 import "@/index.css";
-import { BrowserRouter, Routes, Route, Outlet, useLocation } from "react-router-dom";
+import { BrowserRouter, Routes, Route, Outlet } from "react-router-dom";
 import Header from "@/components/Header";
 import Footer from "@/components/Footer";
 import ProtectedRoute from "@/components/ProtectedRoute";
@@ -25,15 +25,10 @@ function Layout() {
 }
 
 function AppRouter() {
-  // CRITICAL: detect OAuth callback synchronously (not in useEffect) to prevent race conditions.
-  const location = useLocation();
-  if (location.hash?.includes("session_id=")) {
-    return <AuthCallback />;
-  }
-
   return (
     <Routes>
       <Route path="/login" element={<Login />} />
+      <Route path="/auth/callback" element={<AuthCallback />} />
       <Route element={<Layout />}>
         <Route path="/" element={<Landing />} />
         <Route path="/explore" element={<Explore />} />

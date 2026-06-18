@@ -1,38 +1,32 @@
 import { useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
-import { api } from "../lib/api";
 import { useAuth } from "../lib/auth";
 import { Sparkles } from "lucide-react";
+import { supabase } from "../lib/supabase";
 
 export default function AuthCallback() {
   const navigate = useNavigate();
-  const { setUser } = useAuth();
+  const { refresh } = useAuth();
   const hasProcessed = useRef(false);
 
   useEffect(() => {
     if (hasProcessed.current) return;
     hasProcessed.current = true;
 
-    const fragment = window.location.hash.replace(/^#/, "");
-    const params = new URLSearchParams(fragment);
-    const sessionId = params.get("session_id");
-
     (async () => {
-      if (!sessionId) {
-        navigate("/login", { replace: true });
-        return;
-      }
       try {
-        const { user } = await api.exchangeSession(sessionId);
-        setUser(user);
-        // Clear hash and route to dashboard
-        window.history.replaceState(null, "", window.location.pathname);
-        navigate("/dashboard", { replace: true, state: { user } });
+        const { data } = await supabase.auth.getSession();
+        if (!data?.session) {
+          navigate("/login", { replace: true, state: { error: "Could not complete sign in." } });
+          return;
+        }
+        await refresh();
+        navigate("/dashboard", { replace: true });
       } catch (e) {
         navigate("/login", { replace: true, state: { error: "Could not complete sign in." } });
       }
     })();
-  }, [navigate, setUser]);
+  }, [navigate, refresh]);
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-[#FDFDFD]">

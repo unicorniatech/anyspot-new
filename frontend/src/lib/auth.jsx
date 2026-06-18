@@ -1,6 +1,7 @@
-import { createContext, useContext } from "react";
+import { createContext, useContext, useEffect } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { api } from "./api";
+import { supabase } from "./supabase";
 
 const AuthCtx = createContext({ user: null, loading: true, refresh: async () => null, logout: async () => {} });
 
@@ -8,20 +9,24 @@ const AUTH_KEY = ["auth-me"];
 
 export function AuthProvider({ children }) {
   const qc = useQueryClient();
-  // CRITICAL: If returning from OAuth callback, skip the /me check.
-  // AuthCallback will exchange the session_id and establish the session first.
-  const skip = typeof window !== "undefined" && window.location.hash?.includes("session_id=");
 
   const { data: user, isLoading } = useQuery({
     queryKey: AUTH_KEY,
     queryFn: () => api.authMe().catch(() => null),
-    enabled: !skip,
     staleTime: 0,
     retry: false,
   });
 
-  // When skip is true (OAuth callback), don't show loading state forever
-  const loading = skip ? false : isLoading;
+  useEffect(() => {
+    const { data: sub } = supabase.auth.onAuthStateChange(() => {
+      qc.invalidateQueries({ queryKey: AUTH_KEY });
+    });
+    return () => {
+      sub?.subscription?.unsubscribe();
+    };
+  }, [qc]);
+
+  const loading = isLoading;
 
   const refresh = async () => {
     const data = await qc.fetchQuery({
@@ -35,6 +40,11 @@ export function AuthProvider({ children }) {
   const setUser = (u) => qc.setQueryData(AUTH_KEY, u);
 
   const logout = async () => {
+    try {
+      await supabase.auth.signOut();
+    } catch {
+      // ignore
+    }
     try { await api.logout(); } catch { /* ignore */ }
     qc.setQueryData(AUTH_KEY, null);
   };
