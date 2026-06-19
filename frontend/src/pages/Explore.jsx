@@ -2,7 +2,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { api } from "../lib/api";
 import { useState, useMemo } from "react";
 import { useSearchParams } from "react-router-dom";
-import { Search, Filter, Clock, Sparkles, MapPin } from "lucide-react";
+import { Search, Filter, Clock, Sparkles } from "lucide-react";
 import { toast, Toaster } from "sonner";
 
 const CATEGORIES = ["All", "Pilates", "Yoga", "HIIT", "Cycling", "Strength"];
@@ -14,7 +14,9 @@ const TIMES = [
 ];
 
 function formatTime(iso) {
+  if (!iso) return "Time TBA";
   const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return "Time TBA";
   return d.toLocaleString("en-US", { weekday: "short", hour: "numeric", minute: "2-digit" });
 }
 
@@ -39,6 +41,22 @@ export default function Explore() {
     queryKey: ["classes", queryParams],
     queryFn: () => api.listClasses(queryParams),
   });
+
+  const safeClasses = (Array.isArray(classes) ? classes : [])
+    .filter((c) => c && typeof c === "object")
+    .map((c, idx) => ({
+      id: c.id || `class-${idx}`,
+      image: c.image || "https://images.unsplash.com/photo-1591258370814-01609b341790",
+      title: c.title || "Untitled class",
+      category: c.category || "Class",
+      credits: typeof c.credits === "number" ? c.credits : 0,
+      studio_name: c.studio_name || "Studio",
+      instructor: c.instructor || "Instructor TBA",
+      start_time: c.start_time || "",
+      duration_min: typeof c.duration_min === "number" ? c.duration_min : 60,
+      spots_left: typeof c.spots_left === "number" ? c.spots_left : 0,
+      waitlist_count: typeof c.waitlist_count === "number" ? c.waitlist_count : 0,
+    }));
 
   const bookMutation = useMutation({
     mutationFn: api.book,
@@ -69,7 +87,7 @@ export default function Explore() {
             </h1>
           </div>
           <p className="text-[#4A4A7A] text-sm">
-            <span className="font-display text-2xl text-[#0E0E52] font-semibold">{classes.length}</span> classes available
+            <span className="font-display text-2xl text-[#0E0E52] font-semibold">{safeClasses.length}</span> classes available
           </p>
         </div>
 
@@ -150,14 +168,14 @@ export default function Explore() {
           {isLoading && (
             <p className="text-[#4A4A7A] col-span-full">Loading classes…</p>
           )}
-          {!isLoading && classes.length === 0 && (
+          {!isLoading && safeClasses.length === 0 && (
             <div className="col-span-full text-center py-16 border border-dashed border-[#0E0E52]/10 rounded-2xl">
               <Sparkles size={28} className="mx-auto text-[#FF8552]" />
               <p className="mt-3 text-[#0E0E52] font-display text-xl">No classes match your filters</p>
               <p className="text-[#4A4A7A] text-sm">Try widening your time or category.</p>
             </div>
           )}
-          {classes.map((c) => (
+          {safeClasses.map((c) => (
             <div
               key={c.id}
               data-testid={`class-card-${c.id}`}
