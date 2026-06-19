@@ -338,17 +338,16 @@ async def ensure_preview_user():
         ).model_dump())
 
 async def get_current_user(request: Request) -> dict:
-    """Resolve current user from session_token cookie OR Authorization Bearer header.
-    PREVIEW MODE: if no token is present, return the shared preview user so /dashboard
-    and /partner are viewable without auth. Remove the fallback to re-enforce auth."""
-    token = request.cookies.get("session_token")
-    if not token:
-        auth = request.headers.get("authorization") or request.headers.get("Authorization")
-        if auth and auth.lower().startswith("bearer "):
-            token = auth.split(" ", 1)[1].strip()
+    """Resolve current user from Authorization Bearer JWT only.
+    Legacy cookie/session auth is intentionally ignored to avoid accidental auto-login
+    from stale browser cookies."""
+    token = None
+    auth = request.headers.get("authorization") or request.headers.get("Authorization")
+    if auth and auth.lower().startswith("bearer "):
+        token = auth.split(" ", 1)[1].strip()
 
     if not token:
-        if AUTH_PREVIEW_MODE:
+        if AUTH_PREVIEW_MODE and request.headers.get("x-anyspot-preview", "").lower() == "true":
             user = await db.users.find_one({"user_id": PREVIEW_USER_ID}, {"_id": 0})
             if not user:
                 await ensure_preview_user()
@@ -404,25 +403,7 @@ async def get_current_user(request: Request) -> dict:
 
         return user
 
-    session = await db.user_sessions.find_one({"session_token": token}, {"_id": 0})
-    if not session:
-        raise HTTPException(status_code=401, detail="Invalid session")
-
-    expires_at = session["expires_at"]
-    if isinstance(expires_at, str):
-        expires_at = datetime.fromisoformat(expires_at)
-    if expires_at.tzinfo is None:
-        expires_at = expires_at.replace(tzinfo=timezone.utc)
-    if expires_at < datetime.now(timezone.utc):
-        raise HTTPException(status_code=401, detail="Session expired")
-
-    user = await db.users.find_one({"user_id": session["user_id"]}, {"_id": 0})
-    if not user:
-        raise HTTPException(status_code=401, detail="User not found")
-    if not user.get("role"):
-        await db.users.update_one({"user_id": user["user_id"]}, {"$set": {"role": "customer"}})
-        user["role"] = "customer"
-    return user
+    raise HTTPException(status_code=401, detail="Invalid or expired token")
 
 class SessionExchange(BaseModel):
     session_id: str

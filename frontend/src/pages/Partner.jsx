@@ -60,6 +60,9 @@ export default function Partner() {
     onError: (e) => toast.error(e?.response?.data?.detail || "Couldn't delete"),
   });
 
+  const upcomingRoster = Array.isArray(overview?.upcoming_roster) ? overview.upcoming_roster : [];
+  const topClasses = Array.isArray(overview?.top_classes) ? overview.top_classes : [];
+
   return (
     <div className="bg-[#FDFDFD] min-h-screen" data-testid="partner-dashboard">
       <Toaster position="top-center" richColors />
@@ -99,10 +102,10 @@ export default function Partner() {
           <div className="lg:col-span-2 bg-white border border-[#0E0E52]/10 rounded-2xl p-6">
             <div className="flex items-center justify-between">
               <h3 className="font-display text-xl text-[#0E0E52] font-medium">Upcoming roster · next 7 days</h3>
-              <span className="text-xs text-[#4A4A7A]">{overview?.upcoming_roster?.length ?? 0} classes</span>
+              <span className="text-xs text-[#4A4A7A]">{upcomingRoster.length} classes</span>
             </div>
             <div className="mt-5 space-y-2" data-testid="upcoming-roster">
-              {(overview?.upcoming_roster || []).map((r) => {
+              {upcomingRoster.map((r) => {
                 const fill = r.capacity ? Math.round(((r.capacity - r.spots_left) / r.capacity) * 100) : 0;
                 return (
                   <div key={r.class_id} className="grid grid-cols-12 items-center gap-3 py-3 border-b last:border-b-0 border-[#0E0E52]/5">
@@ -133,7 +136,7 @@ export default function Partner() {
                   </div>
                 );
               })}
-              {(!overview || overview.upcoming_roster.length === 0) && (
+              {upcomingRoster.length === 0 && (
                 <p className="text-sm text-[#4A4A7A] py-4">No classes in the next 7 days.</p>
               )}
             </div>
@@ -142,7 +145,7 @@ export default function Partner() {
           <div className="bg-white border border-[#0E0E52]/10 rounded-2xl p-6">
             <h3 className="font-display text-xl text-[#0E0E52] font-medium">Top classes</h3>
             <div className="mt-5 space-y-3" data-testid="top-classes">
-              {(overview?.top_classes || []).map((t, idx) => (
+              {topClasses.map((t, idx) => (
                 <div key={t.class_id} className="flex items-center gap-3">
                   <span className="font-display text-2xl text-[#FF8552] w-7">0{idx + 1}</span>
                   <div className="flex-1 min-w-0">
@@ -152,7 +155,7 @@ export default function Partner() {
                   <span className="text-sm font-display text-[#0E0E52]">{t.bookings}</span>
                 </div>
               ))}
-              {(!overview || overview.top_classes.length === 0) && (
+              {topClasses.length === 0 && (
                 <p className="text-sm text-[#4A4A7A]">No reservations yet. Once members book, top classes appear here.</p>
               )}
             </div>
