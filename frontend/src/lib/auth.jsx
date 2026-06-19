@@ -7,12 +7,19 @@ const AuthCtx = createContext({ user: null, loading: true, refresh: async () => 
 
 const AUTH_KEY = ["auth-me"];
 
+async function fetchAuthUser() {
+  const { data } = await supabase.auth.getSession();
+  const token = data?.session?.access_token;
+  if (!token) return null;
+  return api.authMe().catch(() => null);
+}
+
 export function AuthProvider({ children }) {
   const qc = useQueryClient();
 
   const { data: user, isLoading } = useQuery({
     queryKey: AUTH_KEY,
-    queryFn: () => api.authMe().catch(() => null),
+    queryFn: fetchAuthUser,
     staleTime: 0,
     retry: false,
   });
@@ -31,7 +38,7 @@ export function AuthProvider({ children }) {
   const refresh = async () => {
     const data = await qc.fetchQuery({
       queryKey: AUTH_KEY,
-      queryFn: () => api.authMe().catch(() => null),
+      queryFn: fetchAuthUser,
       staleTime: 0,
     });
     return data;
