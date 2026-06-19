@@ -93,6 +93,7 @@ class User(BaseModel):
     user_id: str
     email: str
     name: str
+    role: str = "customer"  # customer | studio
     picture: Optional[str] = ""
     credits: int = 24
     created_at: str = Field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
@@ -165,6 +166,10 @@ class TeamInviteRequest(BaseModel):
 
 class DuplicateClassRequest(BaseModel):
     start_time: str
+
+
+class AuthRoleUpdateRequest(BaseModel):
+    role: str
 
 # ---------------- Seed Data ----------------
 
@@ -359,6 +364,7 @@ async def get_current_user(request: Request) -> dict:
         meta = supa.get("user_metadata") or {}
         name = meta.get("name") or meta.get("full_name") or (email.split("@")[0] if email else "Member")
         picture = meta.get("avatar_url") or meta.get("picture") or ""
+        role_from_meta = normalize_role(meta.get("role"))
 
         user = None
         if auth_user_id:
@@ -368,7 +374,13 @@ async def get_current_user(request: Request) -> dict:
 
         if not user:
             user_id = f"user_{uuid.uuid4().hex[:12]}"
-            user = User(user_id=user_id, email=email or f"{user_id}@local.invalid", name=name, picture=picture).model_dump()
+            user = User(
+                user_id=user_id,
+                email=email or f"{user_id}@local.invalid",
+                name=name,
+                picture=picture,
+                role=role_from_meta or "customer",
+            ).model_dump()
             if auth_user_id:
                 user["auth_user_id"] = auth_user_id
             await db.users.insert_one(user)
@@ -377,12 +389,18 @@ async def get_current_user(request: Request) -> dict:
                 "name": name or user.get("name", ""),
                 "picture": picture or user.get("picture", ""),
             }
+            if not user.get("role"):
+                patch["role"] = role_from_meta or "customer"
             if auth_user_id:
                 patch["auth_user_id"] = auth_user_id
             if email:
                 patch["email"] = email
             await db.users.update_one({"user_id": user["user_id"]}, {"$set": patch})
             user = await db.users.find_one({"user_id": user["user_id"]}, {"_id": 0})
+
+        if not user.get("role"):
+            await db.users.update_one({"user_id": user["user_id"]}, {"$set": {"role": "customer"}})
+            user["role"] = "customer"
 
         return user
 
@@ -401,6 +419,9 @@ async def get_current_user(request: Request) -> dict:
     user = await db.users.find_one({"user_id": session["user_id"]}, {"_id": 0})
     if not user:
         raise HTTPException(status_code=401, detail="User not found")
+    if not user.get("role"):
+        await db.users.update_one({"user_id": user["user_id"]}, {"$set": {"role": "customer"}})
+        user["role"] = "customer"
     return user
 
 class SessionExchange(BaseModel):
@@ -452,6 +473,26 @@ async def get_supabase_user_from_token(token: str) -> Optional[dict]:
     if r.status_code != 200:
         return None
     return r.json()
+
+
+def normalize_role(value: Optional[str]) -> Optional[str]:
+    if not value:
+        return None
+    v = str(value).strip().lower()
+    if v in {"customer", "studio"}:
+        return v
+    return None
+
+
+def require_role(user: dict, role: str) -> dict:
+    user_role = normalize_role(user.get("role")) or "customer"
+    if user_role != role:
+        raise HTTPException(status_code=403, detail="Insufficient permissions")
+    return user
+
+
+async def get_current_studio_user(user: dict = Depends(get_current_user)):
+    return require_role(user, "studio")
 
 
 async def get_primary_studio_for_user(user_id: str) -> Optional[dict]:
@@ -540,6 +581,7 @@ async def register_studio(payload: StudioRegistrationRequest):
         user_id=user_id,
         email=payload.contact_email,
         name=payload.contact_name,
+        role="studio",
         picture="",
         credits=24,
     ).model_dump()
@@ -591,6 +633,16 @@ async def register_studio(payload: StudioRegistrationRequest):
 @api_router.get("/auth/me")
 async def auth_me(user: dict = Depends(get_current_user)):
     return user
+
+
+@api_router.post("/auth/role")
+async def auth_update_role(payload: AuthRoleUpdateRequest, user: dict = Depends(get_current_user)):
+    role = normalize_role(payload.role)
+    if not role:
+        raise HTTPException(status_code=400, detail="Invalid role")
+    await db.users.update_one({"user_id": user["user_id"]}, {"$set": {"role": role}})
+    updated = await db.users.find_one({"user_id": user["user_id"]}, {"_id": 0})
+    return updated
 
 @api_router.post("/auth/logout")
 async def auth_logout(request: Request, response: Response):
@@ -750,12 +802,12 @@ async def cancel_booking(booking_id: str, user: dict = Depends(get_current_user)
 # For Phase 2 we treat a single "demo partner" who owns ALL seeded studios.
 
 @api_router.get("/partner/studios", response_model=List[Studio])
-async def partner_studios(_: dict = Depends(get_current_user)):
+async def partner_studios(_: dict = Depends(get_current_studio_user)):
     docs = await db.studios.find({}, {"_id": 0}).to_list(100)
     return docs
 
 @api_router.get("/partner/overview")
-async def partner_overview(_: dict = Depends(get_current_user)):
+async def partner_overview(_: dict = Depends(get_current_studio_user)):
     now = datetime.now(timezone.utc)
     week_ago = (now - timedelta(days=7)).isoformat()
     month_ago = (now - timedelta(days=30)).isoformat()
@@ -814,7 +866,7 @@ async def partner_overview(_: dict = Depends(get_current_user)):
     }
 
 @api_router.get("/partner/classes", response_model=List[FitClass])
-async def partner_list_classes(studio_id: Optional[str] = None, upcoming: bool = True, _: dict = Depends(get_current_user)):
+async def partner_list_classes(studio_id: Optional[str] = None, upcoming: bool = True, _: dict = Depends(get_current_studio_user)):
     query = {}
     if studio_id:
         query["studio_id"] = studio_id
@@ -825,7 +877,7 @@ async def partner_list_classes(studio_id: Optional[str] = None, upcoming: bool =
 
 
 @api_router.get("/partner/onboarding/status")
-async def partner_onboarding_status(user: dict = Depends(get_current_user)):
+async def partner_onboarding_status(user: dict = Depends(get_current_studio_user)):
     studio = await get_primary_studio_for_user(user["user_id"])
     if not studio:
         raise HTTPException(status_code=404, detail="Studio not found")
@@ -839,7 +891,7 @@ async def partner_onboarding_status(user: dict = Depends(get_current_user)):
 
 
 @api_router.post("/partner/onboarding/profile")
-async def partner_onboarding_profile(payload: StudioProfileOnboardingRequest, user: dict = Depends(get_current_user)):
+async def partner_onboarding_profile(payload: StudioProfileOnboardingRequest, user: dict = Depends(get_current_studio_user)):
     studio = await get_primary_studio_for_user(user["user_id"])
     if not studio:
         raise HTTPException(status_code=404, detail="Studio not found")
@@ -867,7 +919,7 @@ async def partner_onboarding_profile(payload: StudioProfileOnboardingRequest, us
 
 
 @api_router.post("/partner/onboarding/payment")
-async def partner_onboarding_payment(payload: StudioPaymentSetupRequest, user: dict = Depends(get_current_user)):
+async def partner_onboarding_payment(payload: StudioPaymentSetupRequest, user: dict = Depends(get_current_studio_user)):
     studio = await get_primary_studio_for_user(user["user_id"])
     if not studio:
         raise HTTPException(status_code=404, detail="Studio not found")
@@ -891,7 +943,7 @@ async def partner_onboarding_payment(payload: StudioPaymentSetupRequest, user: d
 
 
 @api_router.post("/partner/onboarding/team/invite")
-async def partner_onboarding_team_invite(payload: TeamInviteRequest, user: dict = Depends(get_current_user)):
+async def partner_onboarding_team_invite(payload: TeamInviteRequest, user: dict = Depends(get_current_studio_user)):
     studio = await get_primary_studio_for_user(user["user_id"])
     if not studio:
         raise HTTPException(status_code=404, detail="Studio not found")
@@ -921,14 +973,14 @@ async def partner_onboarding_team_invite(payload: TeamInviteRequest, user: dict 
     return {"ok": True, "invited": len(emails)}
 
 @api_router.get("/partner/classes/{class_id}/roster", response_model=List[Booking])
-async def partner_class_roster(class_id: str):
+async def partner_class_roster(class_id: str, _: dict = Depends(get_current_studio_user)):
     docs = await db.bookings.find(
         {"class_id": class_id, "status": {"$in": ["confirmed", "waitlist"]}}, {"_id": 0}
     ).sort("created_at", 1).to_list(200)
     return docs
 
 @api_router.post("/partner/classes", response_model=FitClass)
-async def partner_create_class(payload: ClassCreate, _: dict = Depends(get_current_user)):
+async def partner_create_class(payload: ClassCreate, _: dict = Depends(get_current_studio_user)):
     studio = await db.studios.find_one({"id": payload.studio_id}, {"_id": 0})
     if not studio:
         raise HTTPException(status_code=404, detail="Studio not found")
@@ -961,7 +1013,7 @@ async def partner_create_class(payload: ClassCreate, _: dict = Depends(get_curre
     return fc
 
 @api_router.patch("/partner/classes/{class_id}", response_model=FitClass)
-async def partner_update_class(class_id: str, payload: ClassUpdate, _: dict = Depends(get_current_user)):
+async def partner_update_class(class_id: str, payload: ClassUpdate, _: dict = Depends(get_current_studio_user)):
     existing = await db.classes.find_one({"id": class_id}, {"_id": 0})
     if not existing:
         raise HTTPException(status_code=404, detail="Class not found")
@@ -978,7 +1030,7 @@ async def partner_update_class(class_id: str, payload: ClassUpdate, _: dict = De
 
 
 @api_router.post("/partner/classes/{class_id}/duplicate", response_model=FitClass)
-async def partner_duplicate_class(class_id: str, payload: DuplicateClassRequest, _: dict = Depends(get_current_user)):
+async def partner_duplicate_class(class_id: str, payload: DuplicateClassRequest, _: dict = Depends(get_current_studio_user)):
     existing = await db.classes.find_one({"id": class_id}, {"_id": 0})
     if not existing:
         raise HTTPException(status_code=404, detail="Class not found")
@@ -994,7 +1046,7 @@ async def partner_duplicate_class(class_id: str, payload: DuplicateClassRequest,
     return FitClass(**duplicated)
 
 @api_router.delete("/partner/classes/{class_id}")
-async def partner_delete_class(class_id: str, _: dict = Depends(get_current_user)):
+async def partner_delete_class(class_id: str, _: dict = Depends(get_current_studio_user)):
     existing = await db.classes.find_one({"id": class_id}, {"_id": 0})
     if not existing:
         raise HTTPException(status_code=404, detail="Class not found")

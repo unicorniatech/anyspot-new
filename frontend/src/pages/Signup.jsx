@@ -1,10 +1,15 @@
 import { useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { ArrowLeft, Sparkles } from "lucide-react";
 import { supabase } from "../lib/supabase";
+import { api } from "../lib/api";
 
 export default function Signup() {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const roleParam = (searchParams.get("role") || "").toLowerCase();
+  const roleIntent = roleParam === "studio" ? "studio" : "customer";
+  const defaultTarget = roleIntent === "studio" ? "/partner" : "/dashboard";
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -18,12 +23,12 @@ export default function Signup() {
     setMessage("");
     setLoading(true);
 
-    const redirectTo = `${window.location.origin}/auth/callback`;
+    const redirectTo = `${window.location.origin}/auth/callback?role=${encodeURIComponent(roleIntent)}&next=${encodeURIComponent(defaultTarget)}`;
     const { data, error: signUpError } = await supabase.auth.signUp({
       email,
       password,
       options: {
-        data: { name },
+        data: { name, role: roleIntent },
         emailRedirectTo: redirectTo,
       },
     });
@@ -40,7 +45,15 @@ export default function Signup() {
       return;
     }
 
-    navigate("/dashboard", { replace: true });
+    if (roleIntent) {
+      try {
+        await api.authUpdateRole(roleIntent);
+      } catch {
+        // ignore role update errors and continue to app
+      }
+    }
+
+    navigate(defaultTarget, { replace: true });
   };
 
   const signUpWithGoogle = async () => {
@@ -48,10 +61,10 @@ export default function Signup() {
     setMessage("");
     setLoading(true);
 
-    const redirectTo = `${window.location.origin}/auth/callback`;
+    const redirectTo = `${window.location.origin}/auth/callback?role=${encodeURIComponent(roleIntent)}&next=${encodeURIComponent(defaultTarget)}`;
     const { error: oauthError } = await supabase.auth.signInWithOAuth({
       provider: "google",
-      options: { redirectTo },
+      options: { redirectTo, queryParams: { role: roleIntent } },
     });
 
     setLoading(false);
@@ -86,6 +99,9 @@ export default function Signup() {
         <p className="mt-5 text-[#4A4A7A] leading-relaxed">
           Join now and unlock access to classes across studios.
         </p>
+        {roleIntent === "studio" && (
+          <p className="mt-2 text-sm text-[#0E0E52]">Studio mode: we will route you to partner onboarding after sign up.</p>
+        )}
 
         {error && (
           <p className="mt-6 px-4 py-3 rounded-xl bg-[#FF8552]/10 text-[#FF8552] text-sm">
@@ -148,7 +164,7 @@ export default function Signup() {
         </button>
 
         <p className="mt-4 text-sm text-[#4A4A7A] text-center">
-          Already have an account? <Link to="/login" className="text-[#0E0E52] font-medium hover:text-[#FF8552]">Sign in</Link>
+          Already have an account? <Link to={`/login?role=${roleIntent}`} className="text-[#0E0E52] font-medium hover:text-[#FF8552]">Sign in</Link>
         </p>
       </div>
     </div>

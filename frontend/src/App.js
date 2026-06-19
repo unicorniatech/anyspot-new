@@ -61,7 +61,7 @@ function AppRouter() {
         <Route
           path="/partner"
           element={
-            <ProtectedRoute>
+            <ProtectedRoute role="studio">
               <Partner />
             </ProtectedRoute>
           }

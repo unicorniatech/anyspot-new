@@ -1,12 +1,17 @@
 import { useState } from "react";
-import { useLocation, Link, useNavigate } from "react-router-dom";
+import { useLocation, Link, useNavigate, useSearchParams } from "react-router-dom";
 import { Sparkles, ArrowLeft } from "lucide-react";
 import { supabase } from "../lib/supabase";
+import { api } from "../lib/api";
 
 export default function Login() {
   const { state } = useLocation();
   const navigate = useNavigate();
-  const from = state?.from || "/dashboard";
+  const [searchParams] = useSearchParams();
+  const roleParam = (searchParams.get("role") || "").toLowerCase();
+  const roleIntent = roleParam === "studio" ? "studio" : "customer";
+  const defaultTarget = roleIntent === "studio" ? "/partner" : "/dashboard";
+  const from = state?.from || defaultTarget;
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState(state?.error || "");
@@ -27,13 +32,21 @@ export default function Login() {
       return;
     }
 
+    if (roleIntent) {
+      try {
+        await api.authUpdateRole(roleIntent);
+      } catch {
+        // ignore role update errors and continue to app
+      }
+    }
+
     navigate(from, { replace: true });
   };
 
   const signIn = async () => {
     setError("");
     setLoading(true);
-    const redirectTo = `${window.location.origin}/auth/callback`;
+    const redirectTo = `${window.location.origin}/auth/callback?role=${encodeURIComponent(roleIntent)}&next=${encodeURIComponent(defaultTarget)}`;
     const { error } = await supabase.auth.signInWithOAuth({
       provider: "google",
       options: { redirectTo },
@@ -71,6 +84,9 @@ export default function Login() {
         <p className="mt-5 text-[#4A4A7A] leading-relaxed">
           One pass to every boutique studio. Sign in with email or Google.
         </p>
+        {roleIntent === "studio" && (
+          <p className="mt-2 text-sm text-[#0E0E52]">Studio mode: you will be directed to the partner workspace.</p>
+        )}
 
         {error && (
           <p className="mt-6 px-4 py-3 rounded-xl bg-[#FF8552]/10 text-[#FF8552] text-sm" data-testid="login-error">
@@ -120,7 +136,7 @@ export default function Login() {
         </button>
 
         <p className="mt-4 text-sm text-[#4A4A7A] text-center">
-          New here? <Link to="/signup" className="text-[#0E0E52] font-medium hover:text-[#FF8552]">Create an account</Link>
+          New here? <Link to={`/signup?role=${roleIntent}`} className="text-[#0E0E52] font-medium hover:text-[#FF8552]">Create an account</Link>
         </p>
 
         <p className="mt-6 text-xs text-[#4A4A7A] text-center">

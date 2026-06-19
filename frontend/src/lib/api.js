@@ -22,6 +22,7 @@ http.interceptors.request.use(async (config) => {
 export const api = {
   // Auth
   authMe: () => http.get("/auth/me").then((r) => r.data),
+  authUpdateRole: (role) => http.post("/auth/role", { role }).then((r) => r.data),
   logout: () => http.post("/auth/logout").then((r) => r.data),
   registerStudio: (payload) => http.post("/studio/register", payload).then((r) => r.data),
 

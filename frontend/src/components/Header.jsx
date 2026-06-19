@@ -15,7 +15,7 @@ const navItems = [
   { to: "/", label: "Home", protected: false },
   { to: "/explore", label: "Explore", protected: false },
   { to: "/dashboard", label: "Dashboard", protected: true },
-  { to: "/partner", label: "Partner", protected: true },
+  { to: "/partner", label: "Partner", protected: true, role: "studio" },
 ];
 
 export default function Header() {
@@ -23,7 +23,12 @@ export default function Header() {
   const [open, setOpen] = useState(false);
   const loc = useLocation();
   const navigate = useNavigate();
-  const visibleNavItems = navItems.filter((n) => !n.protected || Boolean(user));
+  const visibleNavItems = navItems.filter((n) => {
+    if (!n.protected) return true;
+    if (!user) return false;
+    if (n.role && user?.role !== n.role) return false;
+    return true;
+  });
 
   const onLogout = async () => {
     await logout();
@@ -104,9 +109,11 @@ export default function Header() {
                 <DropdownMenuItem onClick={() => navigate("/dashboard")} data-testid="menu-dashboard">
                   My dashboard
                 </DropdownMenuItem>
-                <DropdownMenuItem onClick={() => navigate("/partner")} data-testid="menu-partner">
-                  Partner mode
-                </DropdownMenuItem>
+                {user?.role === "studio" && (
+                  <DropdownMenuItem onClick={() => navigate("/partner")} data-testid="menu-partner">
+                    Partner mode
+                  </DropdownMenuItem>
+                )}
                 <DropdownMenuSeparator />
                 <DropdownMenuItem
                   data-testid="menu-logout"
@@ -120,18 +127,18 @@ export default function Header() {
           ) : !loading ? (
             <div className="flex items-center gap-2">
               <Link
-                to="/login"
-                data-testid="signin-btn"
-                className="text-[#0E0E52] px-4 py-2 rounded-full text-sm font-medium border border-[#0E0E52]/15 hover:bg-[#0E0E52]/5 transition-colors"
-              >
-                Sign in
-              </Link>
-              <Link
-                to="/signup"
+                to="/signup?role=customer"
                 data-testid="signup-btn"
                 className="bg-[#FF8552] text-white px-5 py-2 rounded-full text-sm font-medium hover:bg-[#E57545] transition-colors"
               >
-                Sign up
+                Join as customer
+              </Link>
+              <Link
+                to="/signup?role=studio"
+                data-testid="signup-studio-btn"
+                className="text-[#0E0E52] px-4 py-2 rounded-full text-sm font-medium border border-[#0E0E52]/15 hover:bg-[#0E0E52]/5 transition-colors"
+              >
+                List your studio
               </Link>
             </div>
           ) : null}

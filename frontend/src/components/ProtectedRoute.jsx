@@ -2,7 +2,7 @@ import { Navigate, useLocation } from "react-router-dom";
 import { useAuth } from "../lib/auth";
 import { Sparkles } from "lucide-react";
 
-export default function ProtectedRoute({ children }) {
+export default function ProtectedRoute({ children, role }) {
   const { user, loading } = useAuth();
   const location = useLocation();
 
@@ -21,6 +21,10 @@ export default function ProtectedRoute({ children }) {
 
   if (!user) {
     return <Navigate to="/login" replace state={{ from: location.pathname }} />;
+  }
+
+  if (role && user?.role !== role) {
+    return <Navigate to="/dashboard" replace />;
   }
 
   return children;
