@@ -271,26 +271,35 @@ CLASS_TEMPLATES = [
 ]
 
 async def ensure_seed():
-    if await db.studios.count_documents({}) > 0:
-        return
-    studio_docs = []
-    for i, s in enumerate(SEED_STUDIOS):
-        studio = Studio(
-            **s,
-            cover_image=STUDIO_IMAGES[i % len(STUDIO_IMAGES)],
-            gallery=[STUDIO_IMAGES[(i + j) % len(STUDIO_IMAGES)] for j in range(3)],
-            instructor_image=INSTRUCTOR_IMAGE,
-        )
-        studio_docs.append(studio.model_dump())
-    await db.studios.insert_many(studio_docs)
+    studio_count = await db.studios.count_documents({})
+    if studio_count == 0:
+        studio_docs = []
+        for i, s in enumerate(SEED_STUDIOS):
+            studio = Studio(
+                **s,
+                cover_image=STUDIO_IMAGES[i % len(STUDIO_IMAGES)],
+                gallery=[STUDIO_IMAGES[(i + j) % len(STUDIO_IMAGES)] for j in range(3)],
+                instructor_image=INSTRUCTOR_IMAGE,
+            )
+            studio_docs.append(studio.model_dump())
+        if studio_docs:
+            await db.studios.insert_many(studio_docs)
+    else:
+        studio_docs = await db.studios.find({}, {"_id": 0}).to_list(200)
 
-    # Generate classes for each studio across the next 14 days
+    class_count = await db.classes.count_documents({})
+    if class_count > 0 or not studio_docs:
+        return
+
     class_docs = []
     now = datetime.now(timezone.utc).replace(minute=0, second=0, microsecond=0)
     for i, studio in enumerate(studio_docs):
-        applicable = [t for t in CLASS_TEMPLATES if t[1] in studio["categories"]]
+        categories = studio.get("categories") or []
+        applicable = [t for t in CLASS_TEMPLATES if t[1] in categories]
         if not applicable:
             applicable = CLASS_TEMPLATES[:3]
+        instructor_name = studio.get("instructor_name") or "Instructor"
+        studio_name = studio.get("name") or "Studio"
         for d in range(14):
             for slot_idx, hour in enumerate([7, 12, 18]):
                 template = applicable[(d + slot_idx) % len(applicable)]
@@ -298,9 +307,9 @@ async def ensure_seed():
                 start = now + timedelta(days=d, hours=(hour - now.hour))
                 fc = FitClass(
                     studio_id=studio["id"],
-                    studio_name=studio["name"],
+                    studio_name=studio_name,
                     title=title,
-                    instructor=studio["instructor_name"],
+                    instructor=instructor_name,
                     category=category,
                     description=desc,
                     duration_min=duration,
@@ -311,7 +320,8 @@ async def ensure_seed():
                     capacity=12,
                 )
                 class_docs.append(fc.model_dump())
-    await db.classes.insert_many(class_docs)
+    if class_docs:
+        await db.classes.insert_many(class_docs)
 
 # ---------------- Auth ----------------
 
