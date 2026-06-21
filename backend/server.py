@@ -323,6 +323,15 @@ async def ensure_seed():
     if class_docs:
         await db.classes.insert_many(class_docs)
 
+
+async def ensure_seed_on_demand():
+    if not MOCK_DATA_ENABLED:
+        return
+    studio_count = await db.studios.count_documents({})
+    class_count = await db.classes.count_documents({})
+    if studio_count == 0 or class_count == 0:
+        await ensure_seed()
+
 # ---------------- Auth ----------------
 
 EMERGENT_SESSION_DATA_URL = "https://demobackend.emergentagent.com/auth/v1/env/oauth/session-data"
@@ -697,6 +706,7 @@ async def auth_logout(request: Request, response: Response):
 
 @api_router.get("/studios", response_model=List[Studio])
 async def list_studios():
+    await ensure_seed_on_demand()
     docs = await db.studios.find({}, {"_id": 0}).to_list(100)
     return docs
 
@@ -722,6 +732,7 @@ async def list_classes(
     search: Optional[str] = None,
     time_of_day: Optional[str] = None,  # morning, midday, evening
 ):
+    await ensure_seed_on_demand()
     query = {"start_time": {"$gte": datetime.now(timezone.utc).isoformat()}}
     if category and category.lower() != "all":
         query["category"] = category
