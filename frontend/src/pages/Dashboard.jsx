@@ -23,6 +23,7 @@ export default function Dashboard() {
 
   const { user: me } = useAuth();
   const { data: bookings = [] } = useQuery({ queryKey: ["bookings"], queryFn: api.bookings });
+  const safeBookings = Array.isArray(bookings) ? bookings : [];
 
   const saveProfile = useMutation({
     mutationFn: api.updateMe,
@@ -45,8 +46,8 @@ export default function Dashboard() {
   });
 
   const now = new Date();
-  const upcoming = bookings.filter((b) => (b.status === "confirmed" || b.status === "waitlist") && new Date(b.start_time) > now);
-  const past = bookings.filter((b) => !((b.status === "confirmed" || b.status === "waitlist") && new Date(b.start_time) > now));
+  const upcoming = safeBookings.filter((b) => (b.status === "confirmed" || b.status === "waitlist") && new Date(b.start_time) > now);
+  const past = safeBookings.filter((b) => !((b.status === "confirmed" || b.status === "waitlist") && new Date(b.start_time) > now));
 
   const startProfileEdit = () => {
     setProfileName(me?.name || "");

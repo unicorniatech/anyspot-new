@@ -54,6 +54,8 @@ export default function Partner() {
     queryFn: () => api.partnerRoster(rosterFor.id),
     enabled: !!rosterFor,
   });
+  const safeClasses = Array.isArray(classes) ? classes : [];
+  const safeRoster = Array.isArray(roster) ? roster : [];
 
   const del = useMutation({
     mutationFn: api.deleteClass,
@@ -287,7 +289,7 @@ export default function Partner() {
             <h2 className="font-display text-2xl md:text-3xl tracking-tight text-[#0E0E52] font-medium">
               All upcoming classes
             </h2>
-            <p className="text-sm text-[#4A4A7A]">{classes.length} scheduled</p>
+            <p className="text-sm text-[#4A4A7A]">{safeClasses.length} scheduled</p>
           </div>
 
           <div className="mt-6 bg-white border border-[#0E0E52]/10 rounded-2xl overflow-hidden">
@@ -303,7 +305,7 @@ export default function Partner() {
                 </tr>
               </thead>
               <tbody>
-                {classes.map((c) => {
+                {safeClasses.map((c) => {
                   const booked = c.capacity - c.spots_left;
                   return (
                     <tr key={c.id} className="border-t border-[#0E0E52]/5 hover:bg-[#CBF3D2]/10" data-testid={`partner-class-row-${c.id}`}>
@@ -345,7 +347,7 @@ export default function Partner() {
                     </tr>
                   );
                 })}
-                {classes.length === 0 && (
+                {safeClasses.length === 0 && (
                   <tr>
                     <td colSpan="6" className="px-5 py-10 text-center text-[#4A4A7A]">No upcoming classes. Hit &ldquo;Add class&rdquo; to publish one.</td>
                   </tr>
@@ -397,8 +399,8 @@ export default function Partner() {
             </AlertDialogDescription>
           </AlertDialogHeader>
           <div className="max-h-80 overflow-y-auto space-y-2 mt-2">
-            {roster.length === 0 && <p className="text-sm text-[#4A4A7A]">No reservations yet.</p>}
-            {roster.map((r, i) => (
+            {safeRoster.length === 0 && <p className="text-sm text-[#4A4A7A]">No reservations yet.</p>}
+            {safeRoster.map((r, i) => (
               <div key={r.id} className="flex items-center justify-between border border-[#0E0E52]/10 rounded-xl px-4 py-3">
                 <div className="flex items-center gap-3">
                   <div className="w-8 h-8 rounded-full bg-[#CBF3D2] text-[#0E0E52] flex items-center justify-center text-xs font-semibold">
