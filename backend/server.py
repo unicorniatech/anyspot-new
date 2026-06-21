@@ -26,6 +26,16 @@ SUPABASE_ANON_KEY = os.environ.get('SUPABASE_ANON_KEY')
 AUTH_PREVIEW_MODE = os.environ.get('AUTH_PREVIEW_MODE', 'false').lower() == 'true'
 MOCK_DATA_ENABLED = os.environ.get('MOCK_DATA_ENABLED', 'true').lower() == 'true'
 
+
+def parse_cors_origins(raw: Optional[str]) -> List[str]:
+    if not raw:
+        return ["*"]
+    origins = [origin.strip().rstrip("/") for origin in raw.split(",") if origin.strip()]
+    return origins or ["*"]
+
+
+CORS_ORIGINS = parse_cors_origins(os.environ.get('CORS_ORIGINS', '*'))
+
 client = None
 if SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY:
     db = create_supabase_db(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY)
@@ -562,8 +572,12 @@ async def get_supabase_user_from_token(token: str) -> Optional[dict]:
         "apikey": apikey,
         "Authorization": f"Bearer {token}",
     }
-    async with httpx.AsyncClient(timeout=15) as h:
-        r = await h.get(f"{SUPABASE_URL}/auth/v1/user", headers=headers)
+    try:
+        async with httpx.AsyncClient(timeout=15) as h:
+            r = await h.get(f"{SUPABASE_URL}/auth/v1/user", headers=headers)
+    except Exception as e:
+        logger.warning("Supabase auth lookup failed: %s", e)
+        return None
     if r.status_code != 200:
         return None
     return r.json()
@@ -1231,8 +1245,8 @@ app.include_router(api_router)
 
 app.add_middleware(
     CORSMiddleware,
-    allow_credentials=True,
-    allow_origins=os.environ.get('CORS_ORIGINS', '*').split(','),
+    allow_credentials="*" not in CORS_ORIGINS,
+    allow_origins=CORS_ORIGINS,
     allow_methods=["*"],
     allow_headers=["*"],
 )
