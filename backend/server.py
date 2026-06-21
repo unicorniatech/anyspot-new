@@ -4,6 +4,7 @@ from starlette.middleware.cors import CORSMiddleware
 import os
 import logging
 import httpx
+import re
 from pathlib import Path
 from pydantic import BaseModel, Field, ConfigDict
 from typing import Any, Dict, List, Optional
@@ -270,6 +271,29 @@ CLASS_TEMPLATES = [
     ("Sunrise Flow", "Yoga", 45, 2, "Wake the body gently with a flowing, light morning practice."),
 ]
 
+CATEGORY_CLASS_PACKS = {
+    "Pilates": [
+        ("Reformer Core Burn", 50, 3, "Precision-based reformer work for deep core strength and posture.", "https://images.unsplash.com/photo-1518611012118-696072aa579a"),
+        ("Pilates Sculpt", 55, 3, "Low-impact full-body sculpt session with athletic sequencing.", "https://images.unsplash.com/photo-1518310383802-640c2de311b2"),
+    ],
+    "Yoga": [
+        ("Vinyasa Reset", 60, 2, "Breath-led flow to build mobility, heat, and calm focus.", "https://images.unsplash.com/photo-1506126613408-eca07ce68773"),
+        ("Deep Stretch & Yin", 75, 2, "Long holds and guided breathwork for recovery and release.", "https://images.unsplash.com/photo-1545205597-3d9d02c29597"),
+    ],
+    "HIIT": [
+        ("HIIT Ignite", 45, 3, "Intervals blending cardio bursts and strength rounds.", "https://images.unsplash.com/photo-1517836357463-d25dfeac3438"),
+        ("MetCon Express", 40, 3, "Fast-paced metabolic conditioning with coach-led scaling.", "https://images.unsplash.com/photo-1434682881908-b43d0467b798"),
+    ],
+    "Cycling": [
+        ("Rhythm Ride", 45, 3, "Beat-driven indoor cycling with climbs, sprints, and choreography.", "https://images.unsplash.com/photo-1576678927484-cc907957088c"),
+        ("Power Climb", 50, 3, "Performance ride focused on power output and endurance blocks.", "https://images.unsplash.com/photo-1594737625785-a6cbdabd333c"),
+    ],
+    "Strength": [
+        ("Strength Foundations", 60, 4, "Coach-guided compound lift session for long-term progress.", "https://images.unsplash.com/photo-1517963879433-6ad2b056d712"),
+        ("Upper + Core Lab", 55, 3, "Upper-body strength and trunk stability programming.", "https://images.unsplash.com/photo-1583454110551-21f2fa2afe61"),
+    ],
+}
+
 async def ensure_seed():
     studio_count = await db.studios.count_documents({})
     if studio_count == 0:
@@ -297,7 +321,7 @@ async def ensure_seed():
         categories = studio.get("categories") or []
         applicable = [t for t in CLASS_TEMPLATES if t[1] in categories]
         if not applicable:
-            applicable = CLASS_TEMPLATES[:3]
+            applicable = CLASS_TEMPLATES
         instructor_name = studio.get("instructor_name") or "Instructor"
         studio_name = studio.get("name") or "Studio"
         for d in range(14):
@@ -324,6 +348,56 @@ async def ensure_seed():
         await db.classes.insert_many(class_docs)
 
 
+async def ensure_mock_category_coverage():
+    if not MOCK_DATA_ENABLED:
+        return
+
+    now_iso = datetime.now(timezone.utc).isoformat()
+    core_categories = ["Pilates", "Yoga", "HIIT", "Cycling", "Strength"]
+    missing = []
+    for c in core_categories:
+        count = await db.classes.count_documents({"category": c, "start_time": {"$gte": now_iso}})
+        if count == 0:
+            missing.append(c)
+
+    if not missing:
+        return
+
+    studios = await db.studios.find({}, {"_id": 0}).to_list(200)
+    if not studios:
+        return
+
+    now = datetime.now(timezone.utc).replace(minute=0, second=0, microsecond=0)
+    class_docs = []
+    for idx, category in enumerate(missing):
+        studio = studios[idx % len(studios)]
+        pack = CATEGORY_CLASS_PACKS.get(category) or []
+        if not pack:
+            continue
+        instructor_name = studio.get("instructor_name") or "Instructor"
+        studio_name = studio.get("name") or "Studio"
+        for slot_idx, (title, duration, credits, desc, image) in enumerate(pack):
+            start = now + timedelta(days=slot_idx, hours=(7 + (idx * 2 + slot_idx * 5) % 12 - now.hour))
+            fc = FitClass(
+                studio_id=studio["id"],
+                studio_name=studio_name,
+                title=title,
+                instructor=instructor_name,
+                category=category,
+                description=desc,
+                duration_min=duration,
+                credits=credits,
+                start_time=start.isoformat(),
+                image=image,
+                spots_left=max(1, 10 - ((idx + slot_idx) % 6)),
+                capacity=12,
+            )
+            class_docs.append(fc.model_dump())
+
+    if class_docs:
+        await db.classes.insert_many(class_docs)
+
+
 async def ensure_seed_on_demand():
     if not MOCK_DATA_ENABLED:
         return
@@ -331,6 +405,7 @@ async def ensure_seed_on_demand():
     class_count = await db.classes.count_documents({})
     if studio_count == 0 or class_count == 0:
         await ensure_seed()
+    await ensure_mock_category_coverage()
 
 # ---------------- Auth ----------------
 
@@ -735,7 +810,7 @@ async def list_classes(
     await ensure_seed_on_demand()
     query = {"start_time": {"$gte": datetime.now(timezone.utc).isoformat()}}
     if category and category.lower() != "all":
-        query["category"] = category
+        query["category"] = {"$regex": f"^{re.escape(category)}$", "$options": "i"}
     if max_credits is not None:
         query["credits"] = {"$lte": max_credits}
     if search:
