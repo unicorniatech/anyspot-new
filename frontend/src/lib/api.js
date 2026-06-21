@@ -34,6 +34,7 @@ export const api = {
 
   // Protected
   me: () => http.get("/me").then((r) => r.data),
+  updateMe: (data) => http.patch("/me", data).then((r) => r.data),
   bookings: () => http.get("/bookings").then((r) => r.data),
   book: (class_id) => http.post("/bookings", { class_id }).then((r) => r.data),
   cancel: (booking_id) => http.post(`/bookings/${booking_id}/cancel`).then((r) => r.data),
@@ -41,6 +42,8 @@ export const api = {
   // Partner (protected)
   partnerOverview: () => http.get("/partner/overview").then((r) => r.data),
   partnerStudios: () => http.get("/partner/studios").then((r) => r.data),
+  partnerStudio: () => http.get("/partner/studio").then((r) => r.data),
+  partnerBootstrap: (data) => http.post("/partner/bootstrap", data).then((r) => r.data),
   partnerClasses: (params = {}) =>
     http.get("/partner/classes", { params }).then((r) => r.data),
   partnerRoster: (class_id) =>

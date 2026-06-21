@@ -23,6 +23,7 @@ SUPABASE_URL = os.environ.get('SUPABASE_URL')
 SUPABASE_SERVICE_ROLE_KEY = os.environ.get('SUPABASE_SERVICE_ROLE_KEY')
 SUPABASE_ANON_KEY = os.environ.get('SUPABASE_ANON_KEY')
 AUTH_PREVIEW_MODE = os.environ.get('AUTH_PREVIEW_MODE', 'false').lower() == 'true'
+MOCK_DATA_ENABLED = os.environ.get('MOCK_DATA_ENABLED', 'true').lower() == 'true'
 
 client = None
 if SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY:
@@ -94,6 +95,7 @@ class User(BaseModel):
     email: str
     name: str
     role: str = "customer"  # customer | studio
+    phone: Optional[str] = ""
     picture: Optional[str] = ""
     credits: int = 24
     created_at: str = Field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
@@ -170,6 +172,19 @@ class DuplicateClassRequest(BaseModel):
 
 class AuthRoleUpdateRequest(BaseModel):
     role: str
+
+
+class StudioBootstrapRequest(BaseModel):
+    studio_name: Optional[str] = None
+    address: Optional[str] = None
+    contact_name: Optional[str] = None
+    contact_phone: Optional[str] = None
+    company_id: Optional[str] = None
+
+
+class UserProfileUpdateRequest(BaseModel):
+    name: Optional[str] = None
+    phone: Optional[str] = None
 
 # ---------------- Seed Data ----------------
 
@@ -362,6 +377,7 @@ async def get_current_user(request: Request) -> dict:
         email = supa.get("email")
         meta = supa.get("user_metadata") or {}
         name = meta.get("name") or meta.get("full_name") or (email.split("@")[0] if email else "Member")
+        phone = meta.get("phone") or meta.get("phone_number") or ""
         picture = meta.get("avatar_url") or meta.get("picture") or ""
         role_from_meta = normalize_role(meta.get("role"))
 
@@ -377,6 +393,7 @@ async def get_current_user(request: Request) -> dict:
                 user_id=user_id,
                 email=email or f"{user_id}@local.invalid",
                 name=name,
+                phone=phone,
                 picture=picture,
                 role=role_from_meta or "customer",
             ).model_dump()
@@ -388,6 +405,8 @@ async def get_current_user(request: Request) -> dict:
                 "name": name or user.get("name", ""),
                 "picture": picture or user.get("picture", ""),
             }
+            if phone and not user.get("phone"):
+                patch["phone"] = phone
             if not user.get("role"):
                 patch["role"] = role_from_meta or "customer"
             if auth_user_id:
@@ -482,6 +501,60 @@ async def get_primary_studio_for_user(user_id: str) -> Optional[dict]:
         return None
     return await db.studios.find_one({"id": link["studio_id"]}, {"_id": 0})
 
+
+async def create_studio_for_owner(
+    owner_user: dict,
+    studio_name: Optional[str] = None,
+    address: Optional[str] = None,
+    contact_name: Optional[str] = None,
+    contact_phone: Optional[str] = None,
+    company_id: Optional[str] = None,
+) -> dict:
+    existing = await get_primary_studio_for_user(owner_user["user_id"])
+    if existing:
+        return existing
+
+    studio_id = f"studio_{uuid.uuid4().hex[:12]}"
+    resolved_name = (studio_name or "").strip() or f"{(owner_user.get('name') or 'New').split(' ')[0]} Studio"
+    resolved_contact_name = (contact_name or "").strip() or owner_user.get("name") or "Studio Owner"
+    resolved_contact_phone = (contact_phone or "").strip() or owner_user.get("phone") or ""
+    resolved_address = (address or "").strip() or "Address TBA"
+
+    studio_doc = Studio(
+        id=studio_id,
+        name=resolved_name,
+        tagline="",
+        city=resolved_address,
+        neighborhood="",
+        cover_image=STUDIO_IMAGES[0],
+        gallery=STUDIO_IMAGES[:3],
+        vibe="",
+        amenities=[],
+        instructor_name=resolved_contact_name,
+        instructor_image=INSTRUCTOR_IMAGE,
+        instructor_bio="",
+        categories=[],
+    ).model_dump()
+    studio_doc.update({
+        "address": resolved_address,
+        "contact_name": resolved_contact_name,
+        "contact_phone": resolved_contact_phone,
+        "contact_email": owner_user.get("email", ""),
+        "company_id": (company_id or "").strip(),
+        "owner_user_id": owner_user["user_id"],
+        "onboarding_step": "profile",
+        "onboarding_completed": False,
+        "payments_active": False,
+    })
+    await db.studios.insert_one(studio_doc)
+    await db.studio_members.insert_one({
+        "studio_id": studio_id,
+        "user_id": owner_user["user_id"],
+        "role": "owner",
+        "created_at": datetime.now(timezone.utc).isoformat(),
+    })
+    return studio_doc
+
 # ---------------- Routes ----------------
 
 @api_router.get("/")
@@ -563,50 +636,25 @@ async def register_studio(payload: StudioRegistrationRequest):
         email=payload.contact_email,
         name=payload.contact_name,
         role="studio",
+        phone=payload.contact_phone,
         picture="",
         credits=24,
     ).model_dump()
     if auth_user_id:
         user["auth_user_id"] = auth_user_id
     await db.users.insert_one(user)
-
-    studio_doc = Studio(
-        id=studio_id,
-        name=payload.studio_name,
-        tagline="",
-        city=payload.address,
-        neighborhood="",
-        cover_image=STUDIO_IMAGES[0],
-        gallery=STUDIO_IMAGES[:3],
-        vibe="",
-        amenities=[],
-        instructor_name=payload.contact_name,
-        instructor_image=INSTRUCTOR_IMAGE,
-        instructor_bio="",
-        categories=[],
-    ).model_dump()
-    studio_doc.update({
-        "address": payload.address,
-        "contact_name": payload.contact_name,
-        "contact_phone": payload.contact_phone,
-        "contact_email": payload.contact_email,
-        "company_id": payload.company_id or "",
-        "owner_user_id": user_id,
-        "onboarding_step": "profile",
-        "onboarding_completed": False,
-        "payments_active": False,
-    })
-    await db.studios.insert_one(studio_doc)
-    await db.studio_members.insert_one({
-        "studio_id": studio_id,
-        "user_id": user_id,
-        "role": "owner",
-        "created_at": datetime.now(timezone.utc).isoformat(),
-    })
+    studio_doc = await create_studio_for_owner(
+        user,
+        studio_name=payload.studio_name,
+        address=payload.address,
+        contact_name=payload.contact_name,
+        contact_phone=payload.contact_phone,
+        company_id=payload.company_id,
+    )
 
     return {
         "ok": True,
-        "studio_id": studio_id,
+        "studio_id": studio_doc["id"],
         "user_id": user_id,
         "verification": "sent" if auth_user_id else "not_configured",
     }
@@ -698,6 +746,25 @@ async def get_class(class_id: str):
 async def get_me(user: dict = Depends(get_current_user)):
     return user
 
+
+@api_router.patch("/me", response_model=User)
+async def update_me(payload: UserProfileUpdateRequest, user: dict = Depends(get_current_user)):
+    update: Dict[str, Any] = {}
+    if payload.name is not None:
+        name = payload.name.strip()
+        if not name:
+            raise HTTPException(status_code=400, detail="Name cannot be empty")
+        update["name"] = name
+    if payload.phone is not None:
+        update["phone"] = payload.phone.strip()
+
+    if not update:
+        return user
+
+    await db.users.update_one({"user_id": user["user_id"]}, {"$set": update})
+    updated = await db.users.find_one({"user_id": user["user_id"]}, {"_id": 0})
+    return updated
+
 @api_router.get("/bookings", response_model=List[Booking])
 async def list_bookings(user: dict = Depends(get_current_user)):
     docs = await db.bookings.find({"user_id": user["user_id"]}, {"_id": 0}).sort("start_time", -1).to_list(100)
@@ -786,6 +853,27 @@ async def cancel_booking(booking_id: str, user: dict = Depends(get_current_user)
 async def partner_studios(_: dict = Depends(get_current_studio_user)):
     docs = await db.studios.find({}, {"_id": 0}).to_list(100)
     return docs
+
+
+@api_router.post("/partner/bootstrap")
+async def partner_bootstrap(payload: StudioBootstrapRequest, user: dict = Depends(get_current_studio_user)):
+    studio = await create_studio_for_owner(
+        user,
+        studio_name=payload.studio_name,
+        address=payload.address,
+        contact_name=payload.contact_name,
+        contact_phone=payload.contact_phone,
+        company_id=payload.company_id,
+    )
+    return {"ok": True, "studio": studio}
+
+
+@api_router.get("/partner/studio")
+async def partner_primary_studio(user: dict = Depends(get_current_studio_user)):
+    studio = await get_primary_studio_for_user(user["user_id"])
+    if not studio:
+        raise HTTPException(status_code=404, detail="Studio not found")
+    return studio
 
 @api_router.get("/partner/overview")
 async def partner_overview(_: dict = Depends(get_current_studio_user)):
@@ -886,7 +974,8 @@ async def partner_onboarding_profile(payload: StudioProfileOnboardingRequest, us
         "description": payload.description,
         "categories": payload.studio_types,
         "opening_hours": payload.opening_hours,
-        "onboarding_step": "payment",
+        "onboarding_step": "completed",
+        "onboarding_completed": True,
     }
     if payload.logo_url:
         update_payload["logo_url"] = payload.logo_url
@@ -1058,7 +1147,8 @@ logger = logging.getLogger(__name__)
 @app.on_event("startup")
 async def on_startup():
     try:
-        await ensure_seed()
+        if MOCK_DATA_ENABLED:
+            await ensure_seed()
         # One-time migration from pre-auth (Phase 1/2) — only if legacy demo-user data exists.
         legacy_bookings = await db.bookings.delete_many({"user_id": "demo-user"})
         await db.users.delete_many({"id": "demo-user"})

@@ -17,9 +17,22 @@ function formatTime(iso) {
 export default function Dashboard() {
   const qc = useQueryClient();
   const [tab, setTab] = useState("upcoming");
+  const [editingProfile, setEditingProfile] = useState(false);
+  const [profileName, setProfileName] = useState("");
+  const [profilePhone, setProfilePhone] = useState("");
 
   const { user: me } = useAuth();
   const { data: bookings = [] } = useQuery({ queryKey: ["bookings"], queryFn: api.bookings });
+
+  const saveProfile = useMutation({
+    mutationFn: api.updateMe,
+    onSuccess: () => {
+      toast.success("Profile updated.");
+      qc.refetchQueries({ queryKey: ["auth-me"] });
+      setEditingProfile(false);
+    },
+    onError: (e) => toast.error(e?.response?.data?.detail || "Couldn't update profile"),
+  });
 
   const cancel = useMutation({
     mutationFn: api.cancel,
@@ -34,6 +47,17 @@ export default function Dashboard() {
   const now = new Date();
   const upcoming = bookings.filter((b) => (b.status === "confirmed" || b.status === "waitlist") && new Date(b.start_time) > now);
   const past = bookings.filter((b) => !((b.status === "confirmed" || b.status === "waitlist") && new Date(b.start_time) > now));
+
+  const startProfileEdit = () => {
+    setProfileName(me?.name || "");
+    setProfilePhone(me?.phone || "");
+    setEditingProfile(true);
+  };
+
+  const submitProfile = (e) => {
+    e.preventDefault();
+    saveProfile.mutate({ name: profileName.trim(), phone: profilePhone.trim() });
+  };
 
   const list = tab === "upcoming" ? upcoming : past;
 
@@ -54,6 +78,58 @@ export default function Dashboard() {
 
         {/* Top widgets */}
         <div className="mt-10 grid md:grid-cols-3 gap-5">
+          <div className="md:col-span-3 bg-white border border-[#0E0E52]/10 rounded-2xl p-6">
+            <div className="flex items-center justify-between flex-wrap gap-3">
+              <div>
+                <span className="anyspot-pill bg-[#CBF3D2] text-[#0E0E52]">Profile</span>
+                <p className="mt-3 text-[#0E0E52] font-medium">{me?.name || "Member"}</p>
+                <p className="text-sm text-[#4A4A7A]">{me?.email || ""}</p>
+                <p className="text-sm text-[#4A4A7A]">{me?.phone || "No phone added"}</p>
+              </div>
+              <button
+                onClick={startProfileEdit}
+                className="px-4 py-2 rounded-full border border-[#0E0E52]/15 text-[#0E0E52] text-sm font-medium hover:bg-[#0E0E52]/5"
+              >
+                Edit profile
+              </button>
+            </div>
+            {editingProfile && (
+              <form onSubmit={submitProfile} className="mt-4 grid md:grid-cols-3 gap-3">
+                <input
+                  type="text"
+                  required
+                  value={profileName}
+                  onChange={(e) => setProfileName(e.target.value)}
+                  placeholder="Full name"
+                  className="rounded-2xl border border-[#0E0E52]/15 px-4 py-3 focus:outline-none focus:ring-2 focus:ring-[#CBF3D2]"
+                />
+                <input
+                  type="tel"
+                  value={profilePhone}
+                  onChange={(e) => setProfilePhone(e.target.value)}
+                  placeholder="Phone"
+                  className="rounded-2xl border border-[#0E0E52]/15 px-4 py-3 focus:outline-none focus:ring-2 focus:ring-[#CBF3D2]"
+                />
+                <div className="flex gap-2">
+                  <button
+                    type="submit"
+                    disabled={saveProfile.isPending}
+                    className="bg-[#0E0E52] text-white px-4 py-3 rounded-full text-sm font-medium hover:bg-[#FF8552] disabled:opacity-60"
+                  >
+                    {saveProfile.isPending ? "Saving..." : "Save"}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setEditingProfile(false)}
+                    className="px-4 py-3 rounded-full text-sm font-medium border border-[#0E0E52]/15 text-[#0E0E52]"
+                  >
+                    Cancel
+                  </button>
+                </div>
+              </form>
+            )}
+          </div>
+
           {/* Credit card */}
           <div className="md:col-span-1 relative overflow-hidden rounded-2xl p-7 bg-[#FF8552] text-white">
             <div className="absolute -right-10 -bottom-10 w-44 h-44 rounded-full bg-white/10" />

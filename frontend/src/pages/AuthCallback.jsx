@@ -33,6 +33,13 @@ export default function AuthCallback() {
             // ignore role update errors and continue
           }
         }
+        if (roleIntent === "studio") {
+          try {
+            await api.partnerBootstrap({});
+          } catch {
+            // ignore bootstrap errors and continue
+          }
+        }
         await refresh();
         navigate(next, { replace: true });
       } catch (e) {

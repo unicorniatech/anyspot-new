@@ -40,6 +40,14 @@ export default function Login() {
       }
     }
 
+    if (roleIntent === "studio") {
+      try {
+        await api.partnerBootstrap({});
+      } catch {
+        // ignore bootstrap errors and continue to app
+      }
+    }
+
     navigate(from, { replace: true });
   };
 
@@ -77,6 +85,24 @@ export default function Login() {
         </div>
 
         <span className="anyspot-pill bg-[#CBF3D2] text-[#0E0E52]">Welcome back</span>
+        <div className="mt-4 grid grid-cols-2 gap-2 rounded-2xl border border-[#0E0E52]/10 p-1 bg-white">
+          <Link
+            to="/login?role=customer"
+            className={`text-center rounded-xl px-3 py-2 text-sm font-medium transition-colors ${
+              roleIntent === "customer" ? "bg-[#0E0E52] text-white" : "text-[#0E0E52] hover:bg-[#0E0E52]/5"
+            }`}
+          >
+            Customer login
+          </Link>
+          <Link
+            to="/login?role=studio"
+            className={`text-center rounded-xl px-3 py-2 text-sm font-medium transition-colors ${
+              roleIntent === "studio" ? "bg-[#0E0E52] text-white" : "text-[#0E0E52] hover:bg-[#0E0E52]/5"
+            }`}
+          >
+            Studio login
+          </Link>
+        </div>
         <h1 className="font-display text-4xl md:text-5xl mt-4 tracking-tighter font-semibold text-[#0E0E52] leading-[1.05]">
           Sign in to move<br />
           <span className="italic text-[#FF8552]">anywhere</span>.

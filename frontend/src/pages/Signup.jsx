@@ -11,8 +11,12 @@ export default function Signup() {
   const roleIntent = roleParam === "studio" ? "studio" : "customer";
   const defaultTarget = roleIntent === "studio" ? "/partner" : "/dashboard";
   const [name, setName] = useState("");
+  const [phone, setPhone] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [studioName, setStudioName] = useState("");
+  const [studioAddress, setStudioAddress] = useState("");
+  const [studioPhone, setStudioPhone] = useState("");
   const [error, setError] = useState("");
   const [message, setMessage] = useState("");
   const [loading, setLoading] = useState(false);
@@ -28,7 +32,7 @@ export default function Signup() {
       email,
       password,
       options: {
-        data: { name, role: roleIntent },
+        data: { name, role: roleIntent, phone: phone.trim() },
         emailRedirectTo: redirectTo,
       },
     });
@@ -50,6 +54,27 @@ export default function Signup() {
         await api.authUpdateRole(roleIntent);
       } catch {
         // ignore role update errors and continue to app
+      }
+    }
+
+    if (phone.trim()) {
+      try {
+        await api.updateMe({ phone: phone.trim() });
+      } catch {
+        // ignore profile update errors and continue to app
+      }
+    }
+
+    if (roleIntent === "studio") {
+      try {
+        await api.partnerBootstrap({
+          studio_name: studioName.trim(),
+          address: studioAddress.trim(),
+          contact_name: name.trim(),
+          contact_phone: studioPhone.trim() || phone.trim(),
+        });
+      } catch {
+        // ignore bootstrap errors and continue to partner where user can retry onboarding
       }
     }
 
@@ -92,6 +117,24 @@ export default function Signup() {
         </div>
 
         <span className="anyspot-pill bg-[#CBF3D2] text-[#0E0E52]">Get started</span>
+        <div className="mt-4 grid grid-cols-2 gap-2 rounded-2xl border border-[#0E0E52]/10 p-1 bg-white">
+          <Link
+            to="/signup?role=customer"
+            className={`text-center rounded-xl px-3 py-2 text-sm font-medium transition-colors ${
+              roleIntent === "customer" ? "bg-[#0E0E52] text-white" : "text-[#0E0E52] hover:bg-[#0E0E52]/5"
+            }`}
+          >
+            I am a customer
+          </Link>
+          <Link
+            to="/signup?role=studio"
+            className={`text-center rounded-xl px-3 py-2 text-sm font-medium transition-colors ${
+              roleIntent === "studio" ? "bg-[#0E0E52] text-white" : "text-[#0E0E52] hover:bg-[#0E0E52]/5"
+            }`}
+          >
+            I own a studio
+          </Link>
+        </div>
         <h1 className="font-display text-4xl md:text-5xl mt-4 tracking-tighter font-semibold text-[#0E0E52] leading-[1.05]">
           Create your<br />
           <span className="italic text-[#FF8552]">AnySpot account</span>
@@ -123,6 +166,40 @@ export default function Signup() {
             placeholder="Full name"
             className="w-full rounded-2xl border border-[#0E0E52]/15 px-4 py-3 focus:outline-none focus:ring-2 focus:ring-[#CBF3D2]"
           />
+          <input
+            type="tel"
+            value={phone}
+            onChange={(e) => setPhone(e.target.value)}
+            placeholder="Phone (optional)"
+            className="w-full rounded-2xl border border-[#0E0E52]/15 px-4 py-3 focus:outline-none focus:ring-2 focus:ring-[#CBF3D2]"
+          />
+          {roleIntent === "studio" && (
+            <>
+              <input
+                type="text"
+                required
+                value={studioName}
+                onChange={(e) => setStudioName(e.target.value)}
+                placeholder="Studio name"
+                className="w-full rounded-2xl border border-[#0E0E52]/15 px-4 py-3 focus:outline-none focus:ring-2 focus:ring-[#CBF3D2]"
+              />
+              <input
+                type="text"
+                required
+                value={studioAddress}
+                onChange={(e) => setStudioAddress(e.target.value)}
+                placeholder="Studio address"
+                className="w-full rounded-2xl border border-[#0E0E52]/15 px-4 py-3 focus:outline-none focus:ring-2 focus:ring-[#CBF3D2]"
+              />
+              <input
+                type="tel"
+                value={studioPhone}
+                onChange={(e) => setStudioPhone(e.target.value)}
+                placeholder="Studio phone (optional)"
+                className="w-full rounded-2xl border border-[#0E0E52]/15 px-4 py-3 focus:outline-none focus:ring-2 focus:ring-[#CBF3D2]"
+              />
+            </>
+          )}
           <input
             type="email"
             required

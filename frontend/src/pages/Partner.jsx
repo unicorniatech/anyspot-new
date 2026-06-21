@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { api } from "../lib/api";
 import { useAuth } from "../lib/auth";
@@ -35,8 +35,15 @@ export default function Partner() {
   const [editing, setEditing] = useState(null);
   const [confirmDel, setConfirmDel] = useState(null); // class id
   const [rosterFor, setRosterFor] = useState(null); // class obj
+  const [logoUrl, setLogoUrl] = useState("");
+  const [description, setDescription] = useState("");
+  const [typesInput, setTypesInput] = useState("");
+  const [photosInput, setPhotosInput] = useState("");
+  const [hoursInput, setHoursInput] = useState("");
 
   const { user: authUser } = useAuth();
+  const { data: onboarding } = useQuery({ queryKey: ["partner-onboarding-status"], queryFn: api.partnerOnboardingStatus });
+  const { data: studio } = useQuery({ queryKey: ["partner-studio"], queryFn: api.partnerStudio });
   const { data: overview } = useQuery({ queryKey: ["partner-overview"], queryFn: api.partnerOverview });
   const { data: classes = [] } = useQuery({
     queryKey: ["partner-classes", "upcoming"],
@@ -60,6 +67,66 @@ export default function Partner() {
     onError: (e) => toast.error(e?.response?.data?.detail || "Couldn't delete"),
   });
 
+  const saveProfile = useMutation({
+    mutationFn: api.partnerOnboardingProfile,
+    onSuccess: () => {
+      toast.success("Studio profile saved. Onboarding complete.");
+      qc.invalidateQueries({ queryKey: ["partner-onboarding-status"] });
+      qc.invalidateQueries({ queryKey: ["partner-studio"] });
+    },
+    onError: (e) => toast.error(e?.response?.data?.detail || "Couldn't save studio profile"),
+  });
+
+  useEffect(() => {
+    if (!studio) return;
+    setLogoUrl(studio.logo_url || "");
+    setDescription(studio.description || studio.vibe || "");
+    setTypesInput(Array.isArray(studio.categories) ? studio.categories.join(", ") : "");
+    setPhotosInput(Array.isArray(studio.gallery) ? studio.gallery.join("\n") : "");
+    setHoursInput(studio.opening_hours ? JSON.stringify(studio.opening_hours, null, 2) : "");
+  }, [studio]);
+
+  const onboardingIncomplete = onboarding && !onboarding.onboarding_completed;
+
+  const submitOnboarding = (e) => {
+    e.preventDefault();
+    const studioTypes = typesInput
+      .split(",")
+      .map((s) => s.trim())
+      .filter(Boolean);
+    const photos = photosInput
+      .split(/\r?\n/)
+      .map((s) => s.trim())
+      .filter(Boolean);
+
+    let openingHours = {};
+    if (hoursInput.trim()) {
+      try {
+        openingHours = JSON.parse(hoursInput);
+      } catch {
+        toast.error("Opening hours must be valid JSON or empty.");
+        return;
+      }
+    }
+
+    if (!description.trim()) {
+      toast.error("Studio description is required.");
+      return;
+    }
+    if (studioTypes.length === 0) {
+      toast.error("Add at least one studio type.");
+      return;
+    }
+
+    saveProfile.mutate({
+      logo_url: logoUrl.trim() || null,
+      description: description.trim(),
+      studio_types: studioTypes,
+      photos,
+      opening_hours: openingHours,
+    });
+  };
+
   const upcomingRoster = Array.isArray(overview?.upcoming_roster) ? overview.upcoming_roster : [];
   const topClasses = Array.isArray(overview?.top_classes) ? overview.top_classes : [];
 
@@ -67,6 +134,58 @@ export default function Partner() {
     <div className="bg-[#FDFDFD] min-h-screen" data-testid="partner-dashboard">
       <Toaster position="top-center" richColors />
       <div className="max-w-7xl mx-auto px-6 lg:px-10 pt-12 pb-20">
+        {onboardingIncomplete && (
+          <div className="mb-10 bg-white border border-[#0E0E52]/10 rounded-2xl p-6" data-testid="partner-onboarding-form">
+            <span className="anyspot-pill bg-[#CBF3D2] text-[#0E0E52]">Onboarding · Studio profile</span>
+            <h2 className="font-display text-3xl mt-4 tracking-tight text-[#0E0E52] font-semibold">Complete your studio profile</h2>
+            <p className="mt-2 text-[#4A4A7A]">Finish this once so your studio can be shown correctly to customers.</p>
+            <form onSubmit={submitOnboarding} className="mt-6 grid md:grid-cols-2 gap-4">
+              <input
+                type="url"
+                value={logoUrl}
+                onChange={(e) => setLogoUrl(e.target.value)}
+                placeholder="Logo URL (optional)"
+                className="rounded-2xl border border-[#0E0E52]/15 px-4 py-3 focus:outline-none focus:ring-2 focus:ring-[#CBF3D2]"
+              />
+              <input
+                type="text"
+                value={typesInput}
+                onChange={(e) => setTypesInput(e.target.value)}
+                placeholder="Studio types (comma separated, e.g. Yoga, Pilates)"
+                className="rounded-2xl border border-[#0E0E52]/15 px-4 py-3 focus:outline-none focus:ring-2 focus:ring-[#CBF3D2]"
+              />
+              <textarea
+                value={description}
+                onChange={(e) => setDescription(e.target.value)}
+                placeholder="Short studio description (max 300 chars)"
+                maxLength={300}
+                className="md:col-span-2 min-h-[110px] rounded-2xl border border-[#0E0E52]/15 px-4 py-3 focus:outline-none focus:ring-2 focus:ring-[#CBF3D2]"
+              />
+              <textarea
+                value={photosInput}
+                onChange={(e) => setPhotosInput(e.target.value)}
+                placeholder="Interior photo URLs (3-5). One URL per line."
+                className="min-h-[110px] rounded-2xl border border-[#0E0E52]/15 px-4 py-3 focus:outline-none focus:ring-2 focus:ring-[#CBF3D2]"
+              />
+              <textarea
+                value={hoursInput}
+                onChange={(e) => setHoursInput(e.target.value)}
+                placeholder='Opening hours JSON (optional), e.g. {"mon":"07:00-20:00"}'
+                className="min-h-[110px] rounded-2xl border border-[#0E0E52]/15 px-4 py-3 focus:outline-none focus:ring-2 focus:ring-[#CBF3D2]"
+              />
+              <div className="md:col-span-2">
+                <button
+                  type="submit"
+                  disabled={saveProfile.isPending}
+                  className="bg-[#0E0E52] text-white px-6 py-3 rounded-full font-medium hover:bg-[#FF8552] transition-colors disabled:opacity-60"
+                >
+                  {saveProfile.isPending ? "Saving..." : "Save studio profile"}
+                </button>
+              </div>
+            </form>
+          </div>
+        )}
+
         {/* Header */}
         <div className="flex items-end justify-between flex-wrap gap-4">
           <div>
