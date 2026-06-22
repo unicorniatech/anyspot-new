@@ -34,6 +34,23 @@ def parse_cors_origins(raw: Optional[str]) -> List[str]:
     return origins or ["*"]
 
 
+def is_allowed_origin(origin: Optional[str]) -> bool:
+    if not origin:
+        return True
+    if CORS_ORIGINS == ["*"]:
+        return True
+    origin = origin.rstrip("/")
+    for allowed in CORS_ORIGINS:
+        if allowed == "*":
+            return True
+        if origin == allowed:
+            return True
+        # Allow any Vercel preview/branch deployment of the frontend project
+        if allowed.endswith(".vercel.app") and origin.endswith(".vercel.app"):
+            return True
+    return False
+
+
 CORS_ORIGINS = parse_cors_origins(os.environ.get('CORS_ORIGINS', '*'))
 
 client = None
@@ -460,23 +477,26 @@ async def get_current_user(request: Request) -> dict:
     """Resolve current user from Authorization Bearer JWT only.
     Legacy cookie/session auth is intentionally ignored to avoid accidental auto-login
     from stale browser cookies."""
-    token = None
-    auth = request.headers.get("authorization") or request.headers.get("Authorization")
-    if auth and auth.lower().startswith("bearer "):
-        token = auth.split(" ", 1)[1].strip()
+    try:
+        token = None
+        auth = request.headers.get("authorization") or request.headers.get("Authorization")
+        if auth and auth.lower().startswith("bearer "):
+            token = auth.split(" ", 1)[1].strip()
 
-    if not token:
-        if AUTH_PREVIEW_MODE and request.headers.get("x-anyspot-preview", "").lower() == "true":
-            user = await db.users.find_one({"user_id": PREVIEW_USER_ID}, {"_id": 0})
-            if not user:
-                await ensure_preview_user()
+        if not token:
+            if AUTH_PREVIEW_MODE and request.headers.get("x-anyspot-preview", "").lower() == "true":
                 user = await db.users.find_one({"user_id": PREVIEW_USER_ID}, {"_id": 0})
-            return user
-        raise HTTPException(status_code=401, detail="Not authenticated")
+                if not user:
+                    await ensure_preview_user()
+                    user = await db.users.find_one({"user_id": PREVIEW_USER_ID}, {"_id": 0})
+                return user
+            raise HTTPException(status_code=401, detail="Not authenticated")
 
-    # Prefer Supabase JWT auth when token is a bearer JWT
-    supa = await get_supabase_user_from_token(token)
-    if supa:
+        # Prefer Supabase JWT auth when token is a bearer JWT
+        supa = await get_supabase_user_from_token(token)
+        if not supa:
+            raise HTTPException(status_code=401, detail="Invalid or expired token")
+
         auth_user_id = supa.get("id")
         email = supa.get("email")
         meta = supa.get("user_metadata") or {}
@@ -525,8 +545,11 @@ async def get_current_user(request: Request) -> dict:
             user["role"] = "customer"
 
         return user
-
-    raise HTTPException(status_code=401, detail="Invalid or expired token")
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.exception("get_current_user failed: %s", e)
+        raise HTTPException(status_code=500, detail="Authentication check failed")
 
 class SessionExchange(BaseModel):
     session_id: str
@@ -769,7 +792,12 @@ async def register_studio(payload: StudioRegistrationRequest):
 
 @api_router.get("/auth/me")
 async def auth_me(user: dict = Depends(get_current_user)):
-    return user
+    try:
+        return user
+    except Exception as e:
+        logger.exception("auth/me failed: %s", e)
+        raise HTTPException(status_code=500, detail="Auth check failed")
+
 
 
 @api_router.post("/auth/role")
@@ -1243,6 +1271,36 @@ async def partner_delete_class(class_id: str, _: dict = Depends(get_current_stud
 
 app.include_router(api_router)
 
+
+@app.get("/health")
+async def health_check():
+    return {"ok": True}
+
+
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+logger = logging.getLogger(__name__)
+
+
+# Custom CORS middleware ensures headers are always present, even on errors.
+@app.middleware("http")
+async def custom_cors_middleware(request: Request, call_next):
+    origin = request.headers.get("origin")
+    try:
+        response = await call_next(request)
+    except Exception as e:
+        logger.exception("Unhandled request error: %s", e)
+        response = Response(
+            content='{"detail":"Internal server error"}',
+            status_code=500,
+            media_type="application/json",
+        )
+    if origin and is_allowed_origin(origin):
+        response.headers["Access-Control-Allow-Origin"] = origin
+        response.headers["Access-Control-Allow-Methods"] = "GET, POST, PUT, DELETE, PATCH, OPTIONS"
+        response.headers["Access-Control-Allow-Headers"] = "*"
+    return response
+
+
 app.add_middleware(
     CORSMiddleware,
     allow_credentials="*" not in CORS_ORIGINS,
@@ -1250,9 +1308,6 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
-
-logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
-logger = logging.getLogger(__name__)
 
 @app.on_event("startup")
 async def on_startup():
