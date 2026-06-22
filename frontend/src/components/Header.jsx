@@ -1,7 +1,8 @@
 import { Link, NavLink, useLocation, useNavigate } from "react-router-dom";
-import { Sparkles, Menu, LogOut } from "lucide-react";
+import { Menu, LogOut } from "lucide-react";
 import { useState } from "react";
 import { useAuth } from "../lib/auth";
+import BrandMark from "./BrandMark";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -46,12 +47,7 @@ export default function Header() {
     >
       <div className="max-w-7xl mx-auto px-6 lg:px-10 h-16 flex items-center justify-between">
         <Link to="/" data-testid="nav-logo" className="flex items-center gap-2 group">
-          <div className="w-9 h-9 rounded-full bg-[#0E0E52] flex items-center justify-center text-white group-hover:bg-[#FF8552] transition-colors">
-            <Sparkles size={18} strokeWidth={2.4} />
-          </div>
-          <span className="font-display text-xl font-semibold tracking-tight text-[#0E0E52]">
-            AnySpot
-          </span>
+          <BrandMark iconClassName="w-9 h-9" textClassName="text-[#0E0E52]" />
         </Link>
 
         <nav className="hidden md:flex items-center gap-1">

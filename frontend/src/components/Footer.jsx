@@ -1,16 +1,12 @@
-import { Sparkles, Instagram, Twitter, Mail } from "lucide-react";
+import { Instagram, Twitter, Mail } from "lucide-react";
+import BrandMark from "./BrandMark";
 
 export default function Footer() {
   return (
     <footer data-testid="site-footer" className="mt-24 bg-[#0E0E52] text-white">
       <div className="max-w-7xl mx-auto px-6 lg:px-10 py-16 grid md:grid-cols-4 gap-10">
         <div className="md:col-span-2">
-          <div className="flex items-center gap-2">
-            <div className="w-9 h-9 rounded-full bg-[#FF8552] flex items-center justify-center">
-              <Sparkles size={18} />
-            </div>
-            <span className="font-display text-xl font-semibold">AnySpot</span>
-          </div>
+          <BrandMark iconClassName="w-9 h-9" textClassName="text-white" />
           <p className="mt-4 max-w-md text-white/70 leading-relaxed">
             One pass to the best boutique fitness studios near you. Move with
             intention, anywhere.

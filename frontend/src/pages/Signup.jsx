@@ -1,8 +1,9 @@
 import { useState } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
-import { ArrowLeft, Sparkles } from "lucide-react";
+import { ArrowLeft } from "lucide-react";
 import { supabase } from "../lib/supabase";
 import { api } from "../lib/api";
+import BrandMark from "../components/BrandMark";
 
 export default function Signup() {
   const navigate = useNavigate();
@@ -109,11 +110,8 @@ export default function Signup() {
           <ArrowLeft size={14} /> Back to home
         </Link>
 
-        <div className="flex items-center gap-2 mb-10">
-          <div className="w-10 h-10 rounded-full bg-[#0E0E52] flex items-center justify-center text-white">
-            <Sparkles size={18} />
-          </div>
-          <span className="font-display text-2xl text-[#0E0E52] font-semibold">AnySpot</span>
+        <div className="mb-10">
+          <BrandMark iconClassName="w-10 h-10" textClassName="text-[#0E0E52]" />
         </div>
 
         <span className="anyspot-pill bg-[#CBF3D2] text-[#0E0E52]">Get started</span>
