@@ -136,7 +136,7 @@ export default function Header() {
               </DropdownMenuContent>
             </DropdownMenu>
           ) : !loading ? (
-            <div className="flex items-center gap-2">
+            <div className="hidden md:flex items-center gap-2">
               <Link
                 to="/signup?role=customer"
                 data-testid="signup-btn"
@@ -178,6 +178,26 @@ export default function Header() {
                 <option value="en">{t("language.english")}</option>
               </select>
             </label>
+            {!loading && !user && (
+              <div className="grid grid-cols-2 gap-2 pt-1">
+                <Link
+                  to="/signup?role=customer"
+                  data-testid="mobile-signup-btn"
+                  onClick={() => setOpen(false)}
+                  className="inline-flex items-center justify-center bg-[#FF8552] text-white px-3 py-1.5 rounded-full text-xs font-medium hover:bg-[#E57545] transition-colors"
+                >
+                  {t("nav.joinCustomer")}
+                </Link>
+                <Link
+                  to="/signup?role=studio"
+                  data-testid="mobile-signup-studio-btn"
+                  onClick={() => setOpen(false)}
+                  className="inline-flex items-center justify-center text-[#0E0E52] px-3 py-1.5 rounded-full text-xs font-medium border border-[#0E0E52]/15 hover:bg-[#0E0E52]/5 transition-colors"
+                >
+                  {t("nav.listStudio")}
+                </Link>
+              </div>
+            )}
             {visibleNavItems.map((n) => (
               <Link
                 key={n.to}
