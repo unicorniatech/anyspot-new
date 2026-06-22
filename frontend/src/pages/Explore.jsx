@@ -5,23 +5,17 @@ import { useNavigate, useSearchParams } from "react-router-dom";
 import { Search, Filter, Clock, Sparkles } from "lucide-react";
 import { toast, Toaster } from "sonner";
 import { useAuth } from "../lib/auth";
+import { useI18n } from "../lib/i18n";
 
-const CATEGORIES = ["All", "Pilates", "Yoga", "HIIT", "Cycling", "Strength"];
-const TIMES = [
-  { key: "any", label: "Any time" },
-  { key: "morning", label: "Morning" },
-  { key: "midday", label: "Midday" },
-  { key: "evening", label: "Evening" },
-];
-
-function formatTime(iso) {
-  if (!iso) return "Time TBA";
+function formatTime(iso, language, fallback) {
+  if (!iso) return fallback;
   const d = new Date(iso);
-  if (Number.isNaN(d.getTime())) return "Time TBA";
-  return d.toLocaleString("en-US", { weekday: "short", hour: "numeric", minute: "2-digit" });
+  if (Number.isNaN(d.getTime())) return fallback;
+  return d.toLocaleString(language || "en-US", { weekday: "short", hour: "numeric", minute: "2-digit" });
 }
 
 export default function Explore() {
+  const { language, t } = useI18n();
   const { user } = useAuth();
   const navigate = useNavigate();
   const [params] = useSearchParams();
@@ -30,6 +24,21 @@ export default function Explore() {
   const [maxCredits, setMaxCredits] = useState(5);
   const [timeOfDay, setTimeOfDay] = useState("any");
   const qc = useQueryClient();
+
+  const CATEGORIES = [
+    { key: "All", label: t("categories.all") },
+    { key: "Pilates", label: t("categories.pilates") },
+    { key: "Yoga", label: t("categories.yoga") },
+    { key: "HIIT", label: t("categories.hiit") },
+    { key: "Cycling", label: t("categories.cycling") },
+    { key: "Strength", label: t("categories.strength") },
+  ];
+  const TIMES = [
+    { key: "any", label: t("times.any") },
+    { key: "morning", label: t("times.morning") },
+    { key: "midday", label: t("times.midday") },
+    { key: "evening", label: t("times.evening") },
+  ];
 
   const queryParams = useMemo(() => {
     const p = {};
@@ -50,11 +59,11 @@ export default function Explore() {
     .map((c, idx) => ({
       id: c.id || `class-${idx}`,
       image: c.image || "https://images.unsplash.com/photo-1591258370814-01609b341790",
-      title: c.title || "Untitled class",
-      category: c.category || "Class",
+      title: c.title || t("explore.untitledClass"),
+      category: c.category || t("explore.classFallback"),
       credits: typeof c.credits === "number" ? c.credits : 0,
-      studio_name: c.studio_name || "Studio",
-      instructor: c.instructor || "Instructor TBA",
+      studio_name: c.studio_name || t("explore.studioFallback"),
+      instructor: c.instructor || t("common.instructorTba"),
       start_time: c.start_time || "",
       duration_min: typeof c.duration_min === "number" ? c.duration_min : 60,
       spots_left: typeof c.spots_left === "number" ? c.spots_left : 0,
@@ -65,16 +74,16 @@ export default function Explore() {
     mutationFn: api.book,
     onSuccess: (data) => {
       if (data?.status === "waitlist") {
-        toast.success("Class is full — you're on the waitlist.");
+        toast.success(t("explore.waitlistToast"));
       } else {
-        toast.success("Booked! See you on the mat.");
+        toast.success(t("explore.bookedToast"));
       }
       qc.refetchQueries({ queryKey: ["auth-me"] });
       qc.invalidateQueries({ queryKey: ["classes"] });
       qc.invalidateQueries({ queryKey: ["bookings"] });
     },
     onError: (err) => {
-      toast.error(err?.response?.data?.detail || "Something went wrong");
+      toast.error(err?.response?.data?.detail || t("common.somethingWentWrong"));
     },
   });
 
@@ -92,13 +101,13 @@ export default function Explore() {
       <div className="max-w-7xl mx-auto px-6 lg:px-10 pt-12 pb-20">
         <div className="flex items-end justify-between flex-wrap gap-4">
           <div>
-            <span className="anyspot-pill bg-[#CBF3D2] text-[#0E0E52]">Explore</span>
+            <span className="anyspot-pill bg-[#CBF3D2] text-[#0E0E52]">{t("explore.pill")}</span>
             <h1 className="font-display text-4xl md:text-5xl mt-4 tracking-tighter font-semibold text-[#0E0E52]">
-              Find your next class.
+              {t("explore.title")}
             </h1>
           </div>
           <p className="text-[#4A4A7A] text-sm">
-            <span className="font-display text-2xl text-[#0E0E52] font-semibold">{safeClasses.length}</span> classes available
+            <span className="font-display text-2xl text-[#0E0E52] font-semibold">{safeClasses.length}</span> {t("explore.classesAvailable")}
           </p>
         </div>
 
@@ -111,28 +120,28 @@ export default function Explore() {
                 data-testid="explore-search-input"
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
-                placeholder="Search by class, studio or instructor"
+                placeholder={t("explore.searchPlaceholder")}
                 className="flex-1 bg-transparent outline-none text-sm text-[#0E0E52]"
               />
             </div>
             <div className="flex items-center gap-2 text-sm text-[#4A4A7A]">
-              <Filter size={14} /> Filters
+              <Filter size={14} /> {t("explore.filters")}
             </div>
           </div>
 
           <div className="flex gap-2 flex-wrap">
             {CATEGORIES.map((c) => (
               <button
-                key={c}
-                data-testid={`filter-category-${c}`}
-                onClick={() => setCategory(c)}
+                key={c.key}
+                data-testid={`filter-category-${c.key}`}
+                onClick={() => setCategory(c.key)}
                 className={`px-4 py-1.5 rounded-full text-sm transition-colors ${
-                  category === c
+                  category === c.key
                     ? "bg-[#0E0E52] text-white"
                     : "border border-[#0E0E52]/10 text-[#0E0E52] hover:bg-[#CBF3D2]"
                 }`}
               >
-                {c}
+                {c.label}
               </button>
             ))}
           </div>
@@ -140,7 +149,7 @@ export default function Explore() {
           <div className="grid md:grid-cols-2 gap-4 pt-2">
             <div>
               <label className="text-xs uppercase tracking-[0.2em] font-bold text-[#4A4A7A]">
-                Max credits: <span className="text-[#FF8552]">{maxCredits}</span>
+                {t("explore.maxCredits")}: <span className="text-[#FF8552]">{maxCredits}</span>
               </label>
               <input
                 type="range"
@@ -154,7 +163,7 @@ export default function Explore() {
             </div>
             <div className="flex gap-2 flex-wrap items-center">
               <span className="text-xs uppercase tracking-[0.2em] font-bold text-[#4A4A7A] mr-2">
-                Time:
+                {t("explore.time")}:
               </span>
               {TIMES.map((t) => (
                 <button
@@ -177,13 +186,13 @@ export default function Explore() {
         {/* Class grid */}
         <div className="mt-10 grid sm:grid-cols-2 lg:grid-cols-3 gap-5" data-testid="classes-grid">
           {isLoading && (
-            <p className="text-[#4A4A7A] col-span-full">Loading classes…</p>
+            <p className="text-[#4A4A7A] col-span-full">{t("explore.loadingClasses")}</p>
           )}
           {!isLoading && safeClasses.length === 0 && (
             <div className="col-span-full text-center py-16 border border-dashed border-[#0E0E52]/10 rounded-2xl">
               <Sparkles size={28} className="mx-auto text-[#FF8552]" />
-              <p className="mt-3 text-[#0E0E52] font-display text-xl">No classes match your filters</p>
-              <p className="text-[#4A4A7A] text-sm">Try widening your time or category.</p>
+              <p className="mt-3 text-[#0E0E52] font-display text-xl">{t("explore.noClassesTitle")}</p>
+              <p className="text-[#4A4A7A] text-sm">{t("explore.noClassesDesc")}</p>
             </div>
           )}
           {safeClasses.map((c) => (
@@ -198,7 +207,7 @@ export default function Explore() {
                   {c.category}
                 </span>
                 <span className="absolute top-3 right-3 anyspot-pill bg-[#FF8552] text-white">
-                  {c.credits} cr
+                  {c.credits} {t("common.creditsShort")}
                 </span>
               </div>
               <div className="p-5">
@@ -206,20 +215,20 @@ export default function Explore() {
                   {c.studio_name}
                 </p>
                 <h3 className="font-display text-xl mt-1 text-[#0E0E52] font-medium">{c.title}</h3>
-                <p className="text-sm text-[#4A4A7A] mt-1">with {c.instructor}</p>
+                <p className="text-sm text-[#4A4A7A] mt-1">{t("common.with")} {c.instructor}</p>
 
                 <div className="mt-4 flex items-center justify-between text-sm text-[#4A4A7A]">
                   <span className="flex items-center gap-1">
-                    <Clock size={14} /> {formatTime(c.start_time)}
+                    <Clock size={14} /> {formatTime(c.start_time, language, t("common.timeTba"))}
                   </span>
-                  <span>{c.duration_min} min</span>
+                  <span>{c.duration_min} {t("common.min")}</span>
                 </div>
 
                 <div className="mt-4 flex items-center justify-between">
                   <span className="text-xs text-[#4A4A7A]">
                     {c.spots_left > 0
-                      ? `${c.spots_left} spots left`
-                      : `Full · ${c.waitlist_count || 0} on waitlist`}
+                      ? `${c.spots_left} ${t("explore.spotsLeft")}`
+                      : `${t("explore.full")} · ${c.waitlist_count || 0} ${t("explore.onWaitlist")}`}
                   </span>
                   <button
                     data-testid={`book-class-${c.id}`}
@@ -231,7 +240,7 @@ export default function Explore() {
                         : "bg-[#0E0E52] hover:bg-[#0E0E52]/80"
                     }`}
                   >
-                    {c.spots_left > 0 ? "Book" : "Join waitlist"}
+                    {c.spots_left > 0 ? t("explore.book") : t("explore.joinWaitlist")}
                   </button>
                 </div>
               </div>

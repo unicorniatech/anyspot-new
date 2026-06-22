@@ -43,12 +43,12 @@ export default function Signup() {
     setLoading(false);
 
     if (signUpError) {
-      setError(signUpError.message || "Could not create account.");
+      setError(signUpError.message || t("auth.couldNotCreateAccount"));
       return;
     }
 
     if (!data?.session) {
-      setMessage("Account created. Please check your email to confirm your account, then sign in.");
+      setMessage(t("auth.accountCreatedCheckEmail"));
       return;
     }
 
@@ -98,7 +98,7 @@ export default function Signup() {
     setLoading(false);
 
     if (oauthError) {
-      setError(oauthError.message || "Could not start Google sign up.");
+      setError(oauthError.message || t("auth.couldNotGoogleSignUp"));
     }
   };
 
@@ -163,14 +163,14 @@ export default function Signup() {
             required
             value={name}
             onChange={(e) => setName(e.target.value)}
-            placeholder="Full name"
+            placeholder={t("auth.fullName")}
             className="w-full rounded-2xl border border-[#0E0E52]/15 px-4 py-3 focus:outline-none focus:ring-2 focus:ring-[#CBF3D2]"
           />
           <input
             type="tel"
             value={phone}
             onChange={(e) => setPhone(e.target.value)}
-            placeholder="Phone (optional)"
+            placeholder={t("auth.phoneOptional")}
             className="w-full rounded-2xl border border-[#0E0E52]/15 px-4 py-3 focus:outline-none focus:ring-2 focus:ring-[#CBF3D2]"
           />
           {roleIntent === "studio" && (
@@ -180,7 +180,7 @@ export default function Signup() {
                 required
                 value={studioName}
                 onChange={(e) => setStudioName(e.target.value)}
-                placeholder="Studio name"
+                placeholder={t("auth.studioName")}
                 className="w-full rounded-2xl border border-[#0E0E52]/15 px-4 py-3 focus:outline-none focus:ring-2 focus:ring-[#CBF3D2]"
               />
               <input
@@ -188,14 +188,14 @@ export default function Signup() {
                 required
                 value={studioAddress}
                 onChange={(e) => setStudioAddress(e.target.value)}
-                placeholder="Studio address"
+                placeholder={t("auth.studioAddress")}
                 className="w-full rounded-2xl border border-[#0E0E52]/15 px-4 py-3 focus:outline-none focus:ring-2 focus:ring-[#CBF3D2]"
               />
               <input
                 type="tel"
                 value={studioPhone}
                 onChange={(e) => setStudioPhone(e.target.value)}
-                placeholder="Studio phone (optional)"
+                placeholder={t("auth.studioPhoneOptional")}
                 className="w-full rounded-2xl border border-[#0E0E52]/15 px-4 py-3 focus:outline-none focus:ring-2 focus:ring-[#CBF3D2]"
               />
             </>
@@ -205,7 +205,7 @@ export default function Signup() {
             required
             value={email}
             onChange={(e) => setEmail(e.target.value)}
-            placeholder="Email"
+            placeholder={t("auth.email")}
             className="w-full rounded-2xl border border-[#0E0E52]/15 px-4 py-3 focus:outline-none focus:ring-2 focus:ring-[#CBF3D2]"
           />
           <input
@@ -214,7 +214,7 @@ export default function Signup() {
             minLength={6}
             value={password}
             onChange={(e) => setPassword(e.target.value)}
-            placeholder="Password"
+            placeholder={t("auth.password")}
             className="w-full rounded-2xl border border-[#0E0E52]/15 px-4 py-3 focus:outline-none focus:ring-2 focus:ring-[#CBF3D2]"
           />
           <button

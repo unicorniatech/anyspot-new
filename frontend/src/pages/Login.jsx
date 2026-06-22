@@ -31,7 +31,7 @@ export default function Login() {
     setLoading(false);
 
     if (signInError) {
-      setError(signInError.message || "Could not sign in.");
+      setError(signInError.message || t("auth.couldNotSignIn"));
       return;
     }
 
@@ -66,7 +66,7 @@ export default function Login() {
     setLoading(false);
 
     if (error) {
-      setError(error.message || "Could not start Google sign in.");
+      setError(error.message || t("auth.couldNotGoogleSignIn"));
     }
   };
 
@@ -126,7 +126,7 @@ export default function Login() {
             required
             value={email}
             onChange={(e) => setEmail(e.target.value)}
-            placeholder="Email"
+            placeholder={t("auth.email")}
             className="w-full rounded-2xl border border-[#0E0E52]/15 px-4 py-3 focus:outline-none focus:ring-2 focus:ring-[#CBF3D2]"
           />
           <input
@@ -134,7 +134,7 @@ export default function Login() {
             required
             value={password}
             onChange={(e) => setPassword(e.target.value)}
-            placeholder="Password"
+            placeholder={t("auth.password")}
             className="w-full rounded-2xl border border-[#0E0E52]/15 px-4 py-3 focus:outline-none focus:ring-2 focus:ring-[#CBF3D2]"
           />
           <button

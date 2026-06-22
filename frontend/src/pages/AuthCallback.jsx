@@ -4,8 +4,10 @@ import { useAuth } from "../lib/auth";
 import { Sparkles } from "lucide-react";
 import { supabase } from "../lib/supabase";
 import { api } from "../lib/api";
+import { useI18n } from "../lib/i18n";
 
 export default function AuthCallback() {
+  const { t } = useI18n();
   const navigate = useNavigate();
   const { refresh } = useAuth();
   const hasProcessed = useRef(false);
@@ -23,7 +25,7 @@ export default function AuthCallback() {
 
         const { data } = await supabase.auth.getSession();
         if (!data?.session) {
-          navigate("/login", { replace: true, state: { error: "Could not complete sign in." } });
+          navigate("/login", { replace: true, state: { error: t("authCallback.couldNotCompleteSignIn") } });
           return;
         }
         if (roleIntent) {
@@ -43,10 +45,10 @@ export default function AuthCallback() {
         await refresh();
         navigate(next, { replace: true });
       } catch (e) {
-        navigate("/login", { replace: true, state: { error: "Could not complete sign in." } });
+        navigate("/login", { replace: true, state: { error: t("authCallback.couldNotCompleteSignIn") } });
       }
     })();
-  }, [navigate, refresh]);
+  }, [navigate, refresh, t]);
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-[#FDFDFD]">
@@ -54,7 +56,7 @@ export default function AuthCallback() {
         <div className="w-10 h-10 rounded-full bg-[#FF8552] flex items-center justify-center text-white animate-pulse">
           <Sparkles size={18} />
         </div>
-        <span className="font-display text-xl">Signing you in…</span>
+        <span className="font-display text-xl">{t("authCallback.signingIn")}</span>
       </div>
     </div>
   );

@@ -3,21 +3,23 @@ import { useQuery } from "@tanstack/react-query";
 import { api } from "../lib/api";
 import { Search, MapPin, Star, Sparkles, ArrowUpRight, Heart, Compass, Clock } from "lucide-react";
 import { useState } from "react";
+import { useI18n } from "../lib/i18n";
 
 const HERO_IMG = "https://images.unsplash.com/photo-1747239069226-55382c570116";
 
-const CATEGORIES = [
-  { name: "Pilates", icon: "✦" },
-  { name: "Yoga", icon: "◎" },
-  { name: "HIIT", icon: "✕" },
-  { name: "Cycling", icon: "◯" },
-  { name: "Strength", icon: "▲" },
-];
-
 export default function Landing() {
+  const { t } = useI18n();
   const { data: studios = [] } = useQuery({ queryKey: ["studios"], queryFn: api.listStudios });
   const [q, setQ] = useState("");
   const studioList = Array.isArray(studios) ? studios : [];
+
+  const CATEGORIES = [
+    { name: t("categories.pilates"), value: "Pilates", icon: "✦" },
+    { name: t("categories.yoga"), value: "Yoga", icon: "◎" },
+    { name: t("categories.hiit"), value: "HIIT", icon: "✕" },
+    { name: t("categories.cycling"), value: "Cycling", icon: "◯" },
+    { name: t("categories.strength"), value: "Strength", icon: "▲" },
+  ];
 
   return (
     <div className="bg-[#FDFDFD]">
@@ -26,18 +28,16 @@ export default function Landing() {
         <div className="max-w-7xl mx-auto px-6 lg:px-10 pt-12 lg:pt-20 pb-16 lg:pb-24 grid lg:grid-cols-12 gap-10 items-end">
           <div className="lg:col-span-7 fade-up">
             <span className="anyspot-pill bg-[#CBF3D2] text-[#0E0E52]">
-              <Sparkles size={12} /> One pass · Every studio
+              <Sparkles size={12} /> {t("landing.heroPill")}
             </span>
             <h1 className="font-display text-5xl md:text-6xl lg:text-7xl mt-6 leading-[0.95] tracking-tighter font-semibold text-[#0E0E52]">
-              Move with
-              <span className="italic font-normal text-[#FF8552]"> intention</span>,
+              {t("landing.heroTitleStart")}
+              <span className="italic font-normal text-[#FF8552]"> {t("landing.heroTitleAccent")}</span>,
               <br />
-              anywhere.
+              {t("landing.heroTitleEnd")}
             </h1>
             <p className="mt-6 max-w-xl text-[#4A4A7A] text-lg leading-relaxed">
-              AnySpot is your single membership to the city&rsquo;s most loved
-              boutique studios. Book Pilates, yoga, strength &amp; more — credit-based,
-              commitment-free.
+              {t("landing.heroDescription")}
             </p>
 
             {/* search */}
@@ -56,23 +56,23 @@ export default function Landing() {
                 data-testid="hero-search-input"
                 value={q}
                 onChange={(e) => setQ(e.target.value)}
-                placeholder="Search class, studio, or instructor"
+                placeholder={t("landing.searchPlaceholder")}
                 className="flex-1 outline-none bg-transparent text-[#0E0E52] placeholder:text-[#4A4A7A]/60 py-2"
               />
               <button
                 data-testid="hero-search-submit"
                 className="bg-[#FF8552] text-white px-6 py-3 rounded-full font-medium hover:bg-[#E57545] transition-colors"
               >
-                Discover
+                {t("landing.discover")}
               </button>
             </form>
 
             <div className="mt-8 flex flex-wrap gap-2">
               {CATEGORIES.map((c) => (
                 <Link
-                  key={c.name}
-                  to={`/explore?category=${c.name}`}
-                  data-testid={`category-chip-${c.name.toLowerCase()}`}
+                  key={c.value}
+                  to={`/explore?category=${c.value}`}
+                  data-testid={`category-chip-${c.value.toLowerCase()}`}
                   className="px-4 py-2 rounded-full border border-[#0E0E52]/10 text-sm text-[#0E0E52] hover:bg-[#CBF3D2] hover:border-[#CBF3D2] transition-colors"
                 >
                   <span className="text-[#FF8552] mr-1.5">{c.icon}</span>
@@ -84,12 +84,12 @@ export default function Landing() {
 
           <div className="lg:col-span-5 relative fade-up">
             <div className="relative rounded-[2rem] overflow-hidden h-[520px] anyspot-card-shadow">
-              <img src={HERO_IMG} alt="Pilates reformer class" className="w-full h-full object-cover" />
+              <img src={HERO_IMG} alt={t("landing.heroImageAlt")} className="w-full h-full object-cover" />
               <div className="absolute inset-0 bg-gradient-to-t from-[#0E0E52]/60 via-transparent to-transparent" />
 
               <div className="absolute top-6 left-6 right-6 flex justify-between">
                 <span className="anyspot-pill bg-white/90 text-[#0E0E52] backdrop-blur-md">
-                  Now booking
+                  {t("landing.nowBooking")}
                 </span>
                 <button className="w-10 h-10 rounded-full bg-white/90 backdrop-blur-md flex items-center justify-center text-[#FF8552]">
                   <Heart size={16} />
@@ -100,18 +100,18 @@ export default function Landing() {
                 <div className="flex items-center justify-between">
                   <div>
                     <p className="text-xs uppercase tracking-[0.2em] text-[#FF8552] font-bold">
-                      Featured
+                      {t("landing.featured")}
                     </p>
                     <p className="font-display text-xl font-semibold mt-1 text-[#0E0E52]">
-                      Reformer Flow · Kinetic Elite
+                      {t("landing.featuredClassTitle")}
                     </p>
                     <p className="text-sm text-[#4A4A7A] mt-1 flex items-center gap-1.5">
-                      <MapPin size={12} /> SoHo, NY · 50 min
+                      <MapPin size={12} /> {t("landing.featuredClassMeta")}
                     </p>
                   </div>
                   <div className="text-right">
                     <p className="font-display text-3xl font-semibold text-[#0E0E52]">3</p>
-                    <p className="text-xs uppercase tracking-[0.2em] text-[#4A4A7A]">credits</p>
+                    <p className="text-xs uppercase tracking-[0.2em] text-[#4A4A7A]">{t("landing.credits")}</p>
                   </div>
                 </div>
               </div>
@@ -119,9 +119,9 @@ export default function Landing() {
 
             {/* Floating stat card */}
             <div className="hidden lg:block absolute -left-10 bottom-16 bg-[#0E0E52] text-white rounded-2xl p-5 w-56 anyspot-card-shadow">
-              <p className="anyspot-pill bg-[#FF8552] text-white">Live</p>
+              <p className="anyspot-pill bg-[#FF8552] text-white">{t("landing.live")}</p>
               <p className="mt-3 font-display text-3xl font-semibold">412</p>
-              <p className="text-white/70 text-sm">classes available this week</p>
+              <p className="text-white/70 text-sm">{t("landing.classesAvailableWeek")}</p>
             </div>
           </div>
         </div>
@@ -134,9 +134,9 @@ export default function Landing() {
       <section className="max-w-7xl mx-auto px-6 lg:px-10 py-16 lg:py-24">
         <div className="grid md:grid-cols-3 gap-6">
           {[
-            { icon: Compass, title: "Discover studios", desc: "Curated boutique studios across the city, vetted for vibe and craft." },
-            { icon: Clock, title: "Book in seconds", desc: "Real-time schedules. One tap to reserve your spot with credits." },
-            { icon: Sparkles, title: "Move anywhere", desc: "Switch studios, switch styles. Your membership flexes with you." },
+            { icon: Compass, title: t("landing.discoverStudiosTitle"), desc: t("landing.discoverStudiosDesc") },
+            { icon: Clock, title: t("landing.bookSecondsTitle"), desc: t("landing.bookSecondsDesc") },
+            { icon: Sparkles, title: t("landing.moveAnywhereTitle"), desc: t("landing.moveAnywhereDesc") },
           ].map((s, i) => (
             <div
               key={i}
@@ -156,9 +156,9 @@ export default function Landing() {
       <section className="max-w-7xl mx-auto px-6 lg:px-10 pb-16 lg:pb-24">
         <div className="flex items-end justify-between mb-10">
           <div>
-            <span className="anyspot-pill bg-[#CBF3D2] text-[#0E0E52]">Featured studios</span>
+            <span className="anyspot-pill bg-[#CBF3D2] text-[#0E0E52]">{t("landing.featuredStudiosPill")}</span>
             <h2 className="font-display text-3xl md:text-4xl mt-4 tracking-tight font-medium text-[#0E0E52]">
-              Hand-picked, this week
+              {t("landing.featuredStudiosTitle")}
             </h2>
           </div>
           <Link
@@ -166,15 +166,15 @@ export default function Landing() {
             className="hidden md:flex items-center gap-1 text-sm text-[#0E0E52] hover:text-[#FF8552] transition-colors"
             data-testid="see-all-studios"
           >
-            See all <ArrowUpRight size={16} />
+            {t("landing.seeAll")} <ArrowUpRight size={16} />
           </Link>
         </div>
 
         <div className="grid md:grid-cols-2 lg:grid-cols-12 gap-6">
           {studioList.map((s, idx) => {
             const categories = Array.isArray(s?.categories) ? s.categories : [];
-            const primaryCategory = categories[0] || "Studio";
-            const locationLabel = [s?.neighborhood, s?.city].filter(Boolean).join(", ") || "Location coming soon";
+            const primaryCategory = categories[0] || t("common.studio");
+            const locationLabel = [s?.neighborhood, s?.city].filter(Boolean).join(", ") || t("landing.locationComingSoon");
             const studioId = s?.id || `studio-${idx}`;
             return (
             <Link
@@ -227,20 +227,20 @@ export default function Landing() {
       <section className="max-w-7xl mx-auto px-6 lg:px-10 pb-24">
         <div className="rounded-3xl bg-[#0E0E52] text-white p-10 lg:p-16 grid lg:grid-cols-2 gap-10 items-center overflow-hidden relative">
           <div>
-            <span className="anyspot-pill bg-[#FF8552] text-white">Get started</span>
+            <span className="anyspot-pill bg-[#FF8552] text-white">{t("landing.ctaPill")}</span>
             <h2 className="font-display text-3xl md:text-5xl mt-4 leading-tight tracking-tight font-medium">
-              Try AnySpot with{" "}
-              <span className="text-[#CBF3D2] italic">24 free credits</span>.
+              {t("landing.ctaTitleStart")}{" "}
+              <span className="text-[#CBF3D2] italic">{t("landing.ctaTitleAccent")}</span>.
             </h2>
             <p className="text-white/70 mt-4 max-w-md">
-              On the house. No card needed. Explore the city, find your studio.
+              {t("landing.ctaDescription")}
             </p>
             <Link
               to="/explore"
               data-testid="cta-explore-now"
               className="mt-8 inline-flex items-center gap-2 bg-[#FF8552] text-white px-8 py-3 rounded-full font-medium hover:bg-[#E57545] transition-colors"
             >
-              Explore classes <ArrowUpRight size={16} />
+              {t("landing.exploreClasses")} <ArrowUpRight size={16} />
             </Link>
           </div>
           <div className="hidden lg:flex justify-end">
@@ -253,7 +253,7 @@ export default function Landing() {
                   } p-5 w-32 h-32 flex flex-col justify-between`}
                 >
                   <span className="font-display text-3xl">0{i}</span>
-                  <span className="text-xs uppercase tracking-widest">Step</span>
+                  <span className="text-xs uppercase tracking-widest">{t("landing.step")}</span>
                 </div>
               ))}
             </div>

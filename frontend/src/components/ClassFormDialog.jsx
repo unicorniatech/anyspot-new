@@ -16,6 +16,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from ".
 import { Button } from "./ui/button";
 import { toast } from "sonner";
 import { Sparkles } from "lucide-react";
+import { useI18n } from "../lib/i18n";
 
 const CATEGORIES = ["Pilates", "Yoga", "HIIT", "Cycling", "Strength"];
 
@@ -40,6 +41,7 @@ const emptyForm = {
 };
 
 export default function ClassFormDialog({ open, onOpenChange, editing = null }) {
+  const { t } = useI18n();
   const qc = useQueryClient();
   const { data: studios = [] } = useQuery({
     queryKey: ["partner-studios"],
@@ -81,13 +83,13 @@ export default function ClassFormDialog({ open, onOpenChange, editing = null }) 
       return api.createClass(payload);
     },
     onSuccess: () => {
-      toast.success(editing ? "Class updated" : "Class created");
+      toast.success(editing ? t("classForm.classUpdated") : t("classForm.classCreated"));
       qc.invalidateQueries({ queryKey: ["partner-classes"] });
       qc.invalidateQueries({ queryKey: ["partner-overview"] });
       qc.invalidateQueries({ queryKey: ["classes"] });
       onOpenChange(false);
     },
-    onError: (e) => toast.error(e?.response?.data?.detail || "Failed to save"),
+    onError: (e) => toast.error(e?.response?.data?.detail || t("classForm.saveFailed")),
   });
 
   const setField = (k) => (e) =>
@@ -99,19 +101,19 @@ export default function ClassFormDialog({ open, onOpenChange, editing = null }) 
         <DialogHeader>
           <DialogTitle className="font-display text-2xl text-[#0E0E52] flex items-center gap-2">
             <Sparkles size={18} className="text-[#FF8552]" />
-            {editing ? "Edit class" : "Add a class"}
+            {editing ? t("classForm.editClass") : t("classForm.addClass")}
           </DialogTitle>
           <DialogDescription className="text-[#4A4A7A]">
-            {editing ? "Update class details. Capacity changes adjust open spots." : "List a new session on AnySpot. Goes live instantly."}
+            {editing ? t("classForm.editDescription") : t("classForm.addDescription")}
           </DialogDescription>
         </DialogHeader>
 
         <div className="grid gap-4 py-2">
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <Label className="text-xs uppercase tracking-[0.2em] font-bold text-[#4A4A7A]">Studio</Label>
+              <Label className="text-xs uppercase tracking-[0.2em] font-bold text-[#4A4A7A]">{t("classForm.studio")}</Label>
               <Select value={form.studio_id} onValueChange={setField("studio_id")}>
-                <SelectTrigger data-testid="form-studio" className="mt-1.5"><SelectValue placeholder="Pick a studio" /></SelectTrigger>
+                <SelectTrigger data-testid="form-studio" className="mt-1.5"><SelectValue placeholder={t("classForm.pickStudio")} /></SelectTrigger>
                 <SelectContent>
                   {studios.map((s) => (
                     <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>
@@ -120,12 +122,12 @@ export default function ClassFormDialog({ open, onOpenChange, editing = null }) 
               </Select>
             </div>
             <div>
-              <Label className="text-xs uppercase tracking-[0.2em] font-bold text-[#4A4A7A]">Category</Label>
+              <Label className="text-xs uppercase tracking-[0.2em] font-bold text-[#4A4A7A]">{t("classForm.category")}</Label>
               <Select value={form.category} onValueChange={setField("category")}>
                 <SelectTrigger data-testid="form-category" className="mt-1.5"><SelectValue /></SelectTrigger>
                 <SelectContent>
                   {CATEGORIES.map((c) => (
-                    <SelectItem key={c} value={c}>{c}</SelectItem>
+                    <SelectItem key={c} value={c}>{c === "Pilates" ? t("categories.pilates") : c === "Yoga" ? t("categories.yoga") : c === "HIIT" ? t("categories.hiit") : c === "Cycling" ? t("categories.cycling") : t("categories.strength")}</SelectItem>
                   ))}
                 </SelectContent>
               </Select>
@@ -133,11 +135,11 @@ export default function ClassFormDialog({ open, onOpenChange, editing = null }) 
           </div>
 
           <div>
-            <Label className="text-xs uppercase tracking-[0.2em] font-bold text-[#4A4A7A]">Class title</Label>
+            <Label className="text-xs uppercase tracking-[0.2em] font-bold text-[#4A4A7A]">{t("classForm.classTitle")}</Label>
             <Input
               data-testid="form-title"
               className="mt-1.5"
-              placeholder="e.g. Sunset Reformer"
+              placeholder={t("classForm.classTitlePlaceholder")}
               value={form.title}
               onChange={setField("title")}
             />
@@ -145,17 +147,17 @@ export default function ClassFormDialog({ open, onOpenChange, editing = null }) 
 
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <Label className="text-xs uppercase tracking-[0.2em] font-bold text-[#4A4A7A]">Instructor</Label>
+              <Label className="text-xs uppercase tracking-[0.2em] font-bold text-[#4A4A7A]">{t("classForm.instructor")}</Label>
               <Input
                 data-testid="form-instructor"
                 className="mt-1.5"
-                placeholder="Leaves blank → studio default"
+                placeholder={t("classForm.instructorPlaceholder")}
                 value={form.instructor}
                 onChange={setField("instructor")}
               />
             </div>
             <div>
-              <Label className="text-xs uppercase tracking-[0.2em] font-bold text-[#4A4A7A]">Start time</Label>
+              <Label className="text-xs uppercase tracking-[0.2em] font-bold text-[#4A4A7A]">{t("classForm.startTime")}</Label>
               <Input
                 data-testid="form-start"
                 type="datetime-local"
@@ -168,26 +170,26 @@ export default function ClassFormDialog({ open, onOpenChange, editing = null }) 
 
           <div className="grid grid-cols-3 gap-3">
             <div>
-              <Label className="text-xs uppercase tracking-[0.2em] font-bold text-[#4A4A7A]">Duration (min)</Label>
+              <Label className="text-xs uppercase tracking-[0.2em] font-bold text-[#4A4A7A]">{t("classForm.duration")}</Label>
               <Input data-testid="form-duration" type="number" min="15" max="180" className="mt-1.5" value={form.duration_min} onChange={setField("duration_min")} />
             </div>
             <div>
-              <Label className="text-xs uppercase tracking-[0.2em] font-bold text-[#4A4A7A]">Credits</Label>
+              <Label className="text-xs uppercase tracking-[0.2em] font-bold text-[#4A4A7A]">{t("classForm.credits")}</Label>
               <Input data-testid="form-credits" type="number" min="1" max="10" className="mt-1.5" value={form.credits} onChange={setField("credits")} />
             </div>
             <div>
-              <Label className="text-xs uppercase tracking-[0.2em] font-bold text-[#4A4A7A]">Capacity</Label>
+              <Label className="text-xs uppercase tracking-[0.2em] font-bold text-[#4A4A7A]">{t("classForm.capacity")}</Label>
               <Input data-testid="form-capacity" type="number" min="1" max="100" className="mt-1.5" value={form.capacity} onChange={setField("capacity")} />
             </div>
           </div>
 
           <div>
-            <Label className="text-xs uppercase tracking-[0.2em] font-bold text-[#4A4A7A]">Description</Label>
+            <Label className="text-xs uppercase tracking-[0.2em] font-bold text-[#4A4A7A]">{t("classForm.description")}</Label>
             <Textarea
               data-testid="form-description"
               className="mt-1.5"
               rows={3}
-              placeholder="What can attendees expect?"
+              placeholder={t("classForm.descriptionPlaceholder")}
               value={form.description}
               onChange={setField("description")}
             />
@@ -195,14 +197,14 @@ export default function ClassFormDialog({ open, onOpenChange, editing = null }) 
         </div>
 
         <DialogFooter className="gap-2 sm:gap-2">
-          <Button variant="outline" onClick={() => onOpenChange(false)} data-testid="form-cancel">Cancel</Button>
+          <Button variant="outline" onClick={() => onOpenChange(false)} data-testid="form-cancel">{t("common.cancel")}</Button>
           <Button
             data-testid="form-save"
             disabled={save.isPending || !form.studio_id || !form.title}
             onClick={() => save.mutate()}
             className="bg-[#FF8552] hover:bg-[#E57545] text-white"
           >
-            {save.isPending ? "Saving…" : editing ? "Save changes" : "Publish class"}
+            {save.isPending ? t("common.saving") : editing ? t("classForm.saveChanges") : t("classForm.publishClass")}
           </Button>
         </DialogFooter>
       </DialogContent>

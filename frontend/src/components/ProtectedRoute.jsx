@@ -1,8 +1,10 @@
 import { Navigate, useLocation } from "react-router-dom";
 import { useAuth } from "../lib/auth";
 import { Sparkles } from "lucide-react";
+import { useI18n } from "../lib/i18n";
 
 export default function ProtectedRoute({ children, role }) {
+  const { t } = useI18n();
   const { user, loading } = useAuth();
   const location = useLocation();
 
@@ -13,7 +15,7 @@ export default function ProtectedRoute({ children, role }) {
           <div className="w-10 h-10 rounded-full bg-[#CBF3D2] flex items-center justify-center text-[#FF8552] animate-pulse">
             <Sparkles size={18} />
           </div>
-          <span className="font-display text-lg">Loading…</span>
+          <span className="font-display text-lg">{t("common.loading")}</span>
         </div>
       </div>
     );

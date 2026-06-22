@@ -7,13 +7,14 @@ import {
 } from "lucide-react";
 import { toast, Toaster } from "sonner";
 import ClassFormDialog from "../components/ClassFormDialog";
+import { useI18n } from "../lib/i18n";
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
 } from "../components/ui/alert-dialog";
 
-function fmtDate(iso) {
+function fmtDate(iso, language) {
   const d = new Date(iso);
-  return d.toLocaleString("en-US", {
+  return d.toLocaleString(language || "en-US", {
     weekday: "short", month: "short", day: "numeric", hour: "numeric", minute: "2-digit",
   });
 }
@@ -30,6 +31,7 @@ function StatCard({ icon: Icon, label, value, accent }) {
 }
 
 export default function Partner() {
+  const { language, t } = useI18n();
   const qc = useQueryClient();
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState(null);
@@ -60,23 +62,23 @@ export default function Partner() {
   const del = useMutation({
     mutationFn: api.deleteClass,
     onSuccess: () => {
-      toast.success("Class deleted. Attendees refunded.");
+      toast.success(t("partner.classDeleted"));
       qc.invalidateQueries({ queryKey: ["partner-classes"] });
       qc.invalidateQueries({ queryKey: ["partner-overview"] });
       qc.invalidateQueries({ queryKey: ["classes"] });
       setConfirmDel(null);
     },
-    onError: (e) => toast.error(e?.response?.data?.detail || "Couldn't delete"),
+    onError: (e) => toast.error(e?.response?.data?.detail || t("partner.classDeleteError")),
   });
 
   const saveProfile = useMutation({
     mutationFn: api.partnerOnboardingProfile,
     onSuccess: () => {
-      toast.success("Studio profile saved. Onboarding complete.");
+      toast.success(t("partner.profileSaved"));
       qc.invalidateQueries({ queryKey: ["partner-onboarding-status"] });
       qc.invalidateQueries({ queryKey: ["partner-studio"] });
     },
-    onError: (e) => toast.error(e?.response?.data?.detail || "Couldn't save studio profile"),
+    onError: (e) => toast.error(e?.response?.data?.detail || t("partner.profileSaveError")),
   });
 
   useEffect(() => {
@@ -106,17 +108,17 @@ export default function Partner() {
       try {
         openingHours = JSON.parse(hoursInput);
       } catch {
-        toast.error("Opening hours must be valid JSON or empty.");
+        toast.error(t("partner.openingHoursInvalid"));
         return;
       }
     }
 
     if (!description.trim()) {
-      toast.error("Studio description is required.");
+      toast.error(t("partner.studioDescriptionRequired"));
       return;
     }
     if (studioTypes.length === 0) {
-      toast.error("Add at least one studio type.");
+      toast.error(t("partner.studioTypeRequired"));
       return;
     }
 
@@ -138,41 +140,41 @@ export default function Partner() {
       <div className="max-w-7xl mx-auto px-6 lg:px-10 pt-12 pb-20">
         {onboardingIncomplete && (
           <div className="mb-10 bg-white border border-[#0E0E52]/10 rounded-2xl p-6" data-testid="partner-onboarding-form">
-            <span className="anyspot-pill bg-[#CBF3D2] text-[#0E0E52]">Onboarding · Studio profile</span>
-            <h2 className="font-display text-3xl mt-4 tracking-tight text-[#0E0E52] font-semibold">Complete your studio profile</h2>
-            <p className="mt-2 text-[#4A4A7A]">Finish this once so your studio can be shown correctly to customers.</p>
+            <span className="anyspot-pill bg-[#CBF3D2] text-[#0E0E52]">{t("partner.onboardingPill")}</span>
+            <h2 className="font-display text-3xl mt-4 tracking-tight text-[#0E0E52] font-semibold">{t("partner.onboardingTitle")}</h2>
+            <p className="mt-2 text-[#4A4A7A]">{t("partner.onboardingDesc")}</p>
             <form onSubmit={submitOnboarding} className="mt-6 grid md:grid-cols-2 gap-4">
               <input
                 type="url"
                 value={logoUrl}
                 onChange={(e) => setLogoUrl(e.target.value)}
-                placeholder="Logo URL (optional)"
+                placeholder={t("partner.logoUrlOptional")}
                 className="rounded-2xl border border-[#0E0E52]/15 px-4 py-3 focus:outline-none focus:ring-2 focus:ring-[#CBF3D2]"
               />
               <input
                 type="text"
                 value={typesInput}
                 onChange={(e) => setTypesInput(e.target.value)}
-                placeholder="Studio types (comma separated, e.g. Yoga, Pilates)"
+                placeholder={t("partner.studioTypesPlaceholder")}
                 className="rounded-2xl border border-[#0E0E52]/15 px-4 py-3 focus:outline-none focus:ring-2 focus:ring-[#CBF3D2]"
               />
               <textarea
                 value={description}
                 onChange={(e) => setDescription(e.target.value)}
-                placeholder="Short studio description (max 300 chars)"
+                placeholder={t("partner.studioDescriptionPlaceholder")}
                 maxLength={300}
                 className="md:col-span-2 min-h-[110px] rounded-2xl border border-[#0E0E52]/15 px-4 py-3 focus:outline-none focus:ring-2 focus:ring-[#CBF3D2]"
               />
               <textarea
                 value={photosInput}
                 onChange={(e) => setPhotosInput(e.target.value)}
-                placeholder="Interior photo URLs (3-5). One URL per line."
+                placeholder={t("partner.photosPlaceholder")}
                 className="min-h-[110px] rounded-2xl border border-[#0E0E52]/15 px-4 py-3 focus:outline-none focus:ring-2 focus:ring-[#CBF3D2]"
               />
               <textarea
                 value={hoursInput}
                 onChange={(e) => setHoursInput(e.target.value)}
-                placeholder='Opening hours JSON (optional), e.g. {"mon":"07:00-20:00"}'
+                placeholder={t("partner.openingHoursPlaceholder")}
                 className="min-h-[110px] rounded-2xl border border-[#0E0E52]/15 px-4 py-3 focus:outline-none focus:ring-2 focus:ring-[#CBF3D2]"
               />
               <div className="md:col-span-2">
@@ -181,7 +183,7 @@ export default function Partner() {
                   disabled={saveProfile.isPending}
                   className="bg-[#0E0E52] text-white px-6 py-3 rounded-full font-medium hover:bg-[#FF8552] transition-colors disabled:opacity-60"
                 >
-                  {saveProfile.isPending ? "Saving..." : "Save studio profile"}
+                  {saveProfile.isPending ? t("common.saving") : t("partner.saveStudioProfile")}
                 </button>
               </div>
             </form>
@@ -192,13 +194,13 @@ export default function Partner() {
         <div className="flex items-end justify-between flex-wrap gap-4">
           <div>
             <span className="anyspot-pill bg-[#CBF3D2] text-[#0E0E52]">
-              <Briefcase size={12} /> Partner mode
+              <Briefcase size={12} /> {t("partner.mode")}
             </span>
             <h1 className="font-display text-4xl md:text-5xl mt-4 tracking-tighter font-semibold text-[#0E0E52]">
-              Studio command.
+              {t("partner.commandTitle")}
             </h1>
             <p className="text-[#4A4A7A] mt-2">
-              Demo partner — managing {overview?.total_studios ?? "—"} studios on AnySpot.
+              {t("partner.commandSubtitle").replace("{count}", String(overview?.total_studios ?? "—"))}
             </p>
           </div>
           <button
@@ -206,24 +208,24 @@ export default function Partner() {
             onClick={() => { setEditing(null); setOpen(true); }}
             className="bg-[#FF8552] text-white px-6 py-3 rounded-full font-medium hover:bg-[#E57545] transition-colors inline-flex items-center gap-2 anyspot-coral-shadow"
           >
-            <Plus size={16} /> Add class
+            <Plus size={16} /> {t("partner.addClass")}
           </button>
         </div>
 
         {/* KPI Grid */}
         <div className="mt-10 grid grid-cols-2 lg:grid-cols-4 gap-5">
-          <StatCard icon={TrendingUp} label="Reservations · 7d" value={overview?.reservations_week ?? "—"} accent />
-          <StatCard icon={Calendar} label="Reservations · 30d" value={overview?.reservations_month ?? "—"} />
-          <StatCard icon={Coins} label="Credits · 7d" value={overview?.credits_week ?? "—"} />
-          <StatCard icon={Sparkles} label="Active classes" value={overview?.active_classes ?? "—"} />
+          <StatCard icon={TrendingUp} label={t("partner.reservations7d")} value={overview?.reservations_week ?? "—"} accent />
+          <StatCard icon={Calendar} label={t("partner.reservations30d")} value={overview?.reservations_month ?? "—"} />
+          <StatCard icon={Coins} label={t("partner.credits7d")} value={overview?.credits_week ?? "—"} />
+          <StatCard icon={Sparkles} label={t("partner.activeClasses")} value={overview?.active_classes ?? "—"} />
         </div>
 
         {/* Roster + Top */}
         <div className="mt-10 grid lg:grid-cols-3 gap-6">
           <div className="lg:col-span-2 bg-white border border-[#0E0E52]/10 rounded-2xl p-6">
             <div className="flex items-center justify-between">
-              <h3 className="font-display text-xl text-[#0E0E52] font-medium">Upcoming roster · next 7 days</h3>
-              <span className="text-xs text-[#4A4A7A]">{upcomingRoster.length} classes</span>
+              <h3 className="font-display text-xl text-[#0E0E52] font-medium">{t("partner.upcomingRoster")}</h3>
+              <span className="text-xs text-[#4A4A7A]">{upcomingRoster.length} {t("partner.classesCount")}</span>
             </div>
             <div className="mt-5 space-y-2" data-testid="upcoming-roster">
               {upcomingRoster.map((r) => {
@@ -232,13 +234,13 @@ export default function Partner() {
                   <div key={r.class_id} className="grid grid-cols-12 items-center gap-3 py-3 border-b last:border-b-0 border-[#0E0E52]/5">
                     <div className="col-span-5">
                       <p className="font-medium text-sm text-[#0E0E52]">{r.title}</p>
-                      <p className="text-xs text-[#4A4A7A]">{r.studio_name} · {fmtDate(r.start_time)}</p>
+                      <p className="text-xs text-[#4A4A7A]">{r.studio_name} · {fmtDate(r.start_time, language)}</p>
                     </div>
                     <div className="col-span-4">
                       <div className="flex items-center justify-between text-xs text-[#4A4A7A]">
                         <span>{r.booked} / {r.capacity}</span>
                         {r.waitlist > 0 && (
-                          <span className="text-[#FF8552] font-semibold">+{r.waitlist} waitlist</span>
+                          <span className="text-[#FF8552] font-semibold">+{r.waitlist} {t("partner.waitlistShort")}</span>
                         )}
                       </div>
                       <div className="mt-1.5 h-1.5 rounded-full bg-[#0E0E52]/5 overflow-hidden">
@@ -251,20 +253,20 @@ export default function Partner() {
                         onClick={() => setRosterFor(r)}
                         className="text-xs text-[#0E0E52] hover:text-[#FF8552] inline-flex items-center gap-1"
                       >
-                        View roster <ChevronRight size={12} />
+                        {t("partner.viewRoster")} <ChevronRight size={12} />
                       </button>
                     </div>
                   </div>
                 );
               })}
               {upcomingRoster.length === 0 && (
-                <p className="text-sm text-[#4A4A7A] py-4">No classes in the next 7 days.</p>
+                <p className="text-sm text-[#4A4A7A] py-4">{t("partner.noClasses7d")}</p>
               )}
             </div>
           </div>
 
           <div className="bg-white border border-[#0E0E52]/10 rounded-2xl p-6">
-            <h3 className="font-display text-xl text-[#0E0E52] font-medium">Top classes</h3>
+            <h3 className="font-display text-xl text-[#0E0E52] font-medium">{t("partner.topClasses")}</h3>
             <div className="mt-5 space-y-3" data-testid="top-classes">
               {topClasses.map((t, idx) => (
                 <div key={t.class_id} className="flex items-center gap-3">
@@ -277,7 +279,7 @@ export default function Partner() {
                 </div>
               ))}
               {topClasses.length === 0 && (
-                <p className="text-sm text-[#4A4A7A]">No reservations yet. Once members book, top classes appear here.</p>
+                <p className="text-sm text-[#4A4A7A]">{t("partner.noReservationsYet")}</p>
               )}
             </div>
           </div>
@@ -287,21 +289,21 @@ export default function Partner() {
         <div className="mt-12">
           <div className="flex items-center justify-between flex-wrap gap-3">
             <h2 className="font-display text-2xl md:text-3xl tracking-tight text-[#0E0E52] font-medium">
-              All upcoming classes
+              {t("partner.allUpcomingClasses")}
             </h2>
-            <p className="text-sm text-[#4A4A7A]">{safeClasses.length} scheduled</p>
+            <p className="text-sm text-[#4A4A7A]">{safeClasses.length} {t("partner.scheduled")}</p>
           </div>
 
           <div className="mt-6 bg-white border border-[#0E0E52]/10 rounded-2xl overflow-hidden">
             <table className="w-full text-sm" data-testid="classes-table">
               <thead className="bg-[#CBF3D2]/30 text-[#0E0E52]">
                 <tr>
-                  <th className="text-left px-5 py-3 font-medium">Class</th>
-                  <th className="text-left px-5 py-3 font-medium hidden md:table-cell">Studio</th>
-                  <th className="text-left px-5 py-3 font-medium hidden lg:table-cell">When</th>
-                  <th className="text-left px-5 py-3 font-medium">Fill</th>
-                  <th className="text-left px-5 py-3 font-medium hidden md:table-cell">Credits</th>
-                  <th className="text-right px-5 py-3 font-medium">Actions</th>
+                  <th className="text-left px-5 py-3 font-medium">{t("partner.tableClass")}</th>
+                  <th className="text-left px-5 py-3 font-medium hidden md:table-cell">{t("partner.tableStudio")}</th>
+                  <th className="text-left px-5 py-3 font-medium hidden lg:table-cell">{t("partner.tableWhen")}</th>
+                  <th className="text-left px-5 py-3 font-medium">{t("partner.tableFill")}</th>
+                  <th className="text-left px-5 py-3 font-medium hidden md:table-cell">{t("partner.tableCredits")}</th>
+                  <th className="text-right px-5 py-3 font-medium">{t("partner.tableActions")}</th>
                 </tr>
               </thead>
               <tbody>
@@ -314,12 +316,12 @@ export default function Partner() {
                         <p className="text-xs text-[#4A4A7A]">{c.category} · {c.instructor}</p>
                       </td>
                       <td className="px-5 py-4 hidden md:table-cell text-[#4A4A7A]">{c.studio_name}</td>
-                      <td className="px-5 py-4 hidden lg:table-cell text-[#4A4A7A]">{fmtDate(c.start_time)}</td>
+                      <td className="px-5 py-4 hidden lg:table-cell text-[#4A4A7A]">{fmtDate(c.start_time, language)}</td>
                       <td className="px-5 py-4">
                         <div className="flex items-center gap-2">
                           <span className="font-display text-[#0E0E52]">{booked}/{c.capacity}</span>
                           {c.waitlist_count > 0 && (
-                            <span className="text-[10px] uppercase tracking-widest text-[#FF8552] font-bold">+{c.waitlist_count} wl</span>
+                            <span className="text-[10px] uppercase tracking-widest text-[#FF8552] font-bold">+{c.waitlist_count} {t("partner.waitlistShort")}</span>
                           )}
                         </div>
                       </td>
@@ -349,7 +351,7 @@ export default function Partner() {
                 })}
                 {safeClasses.length === 0 && (
                   <tr>
-                    <td colSpan="6" className="px-5 py-10 text-center text-[#4A4A7A]">No upcoming classes. Hit &ldquo;Add class&rdquo; to publish one.</td>
+                    <td colSpan="6" className="px-5 py-10 text-center text-[#4A4A7A]">{t("partner.noUpcomingClasses")}</td>
                   </tr>
                 )}
               </tbody>
@@ -369,19 +371,19 @@ export default function Partner() {
       <AlertDialog open={!!confirmDel} onOpenChange={(v) => !v && setConfirmDel(null)}>
         <AlertDialogContent data-testid="confirm-delete-dialog">
           <AlertDialogHeader>
-            <AlertDialogTitle className="font-display text-[#0E0E52]">Delete this class?</AlertDialogTitle>
+            <AlertDialogTitle className="font-display text-[#0E0E52]">{t("partner.deleteClassTitle")}</AlertDialogTitle>
             <AlertDialogDescription>
-              All active bookings will be cancelled and credits refunded. This can&apos;t be undone.
+              {t("partner.deleteClassDesc")}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel data-testid="confirm-delete-cancel">Keep class</AlertDialogCancel>
+            <AlertDialogCancel data-testid="confirm-delete-cancel">{t("partner.keepClass")}</AlertDialogCancel>
             <AlertDialogAction
               data-testid="confirm-delete-confirm"
               onClick={() => del.mutate(confirmDel.id)}
               className="bg-[#FF8552] hover:bg-[#E57545]"
             >
-              Delete
+              {t("partner.delete")}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
@@ -392,14 +394,14 @@ export default function Partner() {
         <AlertDialogContent data-testid="roster-dialog">
           <AlertDialogHeader>
             <AlertDialogTitle className="font-display text-[#0E0E52]">
-              Roster · {rosterFor?.title}
+              {t("partner.rosterTitle")} · {rosterFor?.title}
             </AlertDialogTitle>
             <AlertDialogDescription className="text-[#4A4A7A]">
-              {rosterFor && fmtDate(rosterFor.start_time)} · {rosterFor?.studio_name}
+              {rosterFor && fmtDate(rosterFor.start_time, language)} · {rosterFor?.studio_name}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <div className="max-h-80 overflow-y-auto space-y-2 mt-2">
-            {safeRoster.length === 0 && <p className="text-sm text-[#4A4A7A]">No reservations yet.</p>}
+            {safeRoster.length === 0 && <p className="text-sm text-[#4A4A7A]">{t("partner.noReservations")}</p>}
             {safeRoster.map((r, i) => (
               <div key={r.id} className="flex items-center justify-between border border-[#0E0E52]/10 rounded-xl px-4 py-3">
                 <div className="flex items-center gap-3">
@@ -407,8 +409,8 @@ export default function Partner() {
                     {i + 1}
                   </div>
                   <div>
-                    <p className="text-sm text-[#0E0E52] font-medium">{authUser && r.user_id === authUser.user_id ? `${authUser.name} (you)` : "Member"}</p>
-                    <p className="text-xs text-[#4A4A7A]">Booked {fmtDate(r.created_at)}</p>
+                    <p className="text-sm text-[#0E0E52] font-medium">{authUser && r.user_id === authUser.user_id ? `${authUser.name} (${t("partner.you")})` : t("common.member")}</p>
+                    <p className="text-xs text-[#4A4A7A]">{t("partner.bookedAt")} {fmtDate(r.created_at, language)}</p>
                   </div>
                 </div>
                 <span className={`anyspot-pill text-xs ${r.status === "waitlist" ? "bg-[#FF8552]/15 text-[#FF8552]" : "bg-[#CBF3D2] text-[#0E0E52]"}`}>
@@ -418,7 +420,7 @@ export default function Partner() {
             ))}
           </div>
           <AlertDialogFooter>
-            <AlertDialogCancel data-testid="roster-close">Close</AlertDialogCancel>
+            <AlertDialogCancel data-testid="roster-close">{t("common.close")}</AlertDialogCancel>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
