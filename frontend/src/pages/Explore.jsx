@@ -58,6 +58,7 @@ export default function Explore() {
     .filter((c) => c && typeof c === "object")
     .map((c, idx) => ({
       id: c.id || `class-${idx}`,
+      studio_id: c.studio_id || "",
       image: c.image || "https://images.unsplash.com/photo-1591258370814-01609b341790",
       title: c.title || t("explore.untitledClass"),
       category: c.category || t("explore.classFallback"),
@@ -93,6 +94,11 @@ export default function Explore() {
       return;
     }
     bookMutation.mutate(classId);
+  };
+
+  const goToStudio = (studioId) => {
+    if (!studioId) return;
+    navigate(`/studio/${studioId}`);
   };
 
   return (
@@ -199,7 +205,17 @@ export default function Explore() {
             <div
               key={c.id}
               data-testid={`class-card-${c.id}`}
-              className="bg-white rounded-2xl border border-[#0E0E52]/10 overflow-hidden hover:-translate-y-1 transition-transform group"
+              role={c.studio_id ? "button" : undefined}
+              tabIndex={c.studio_id ? 0 : undefined}
+              onClick={() => goToStudio(c.studio_id)}
+              onKeyDown={(e) => {
+                if (!c.studio_id) return;
+                if (e.key === "Enter" || e.key === " ") {
+                  e.preventDefault();
+                  goToStudio(c.studio_id);
+                }
+              }}
+              className={`bg-white rounded-2xl border border-[#0E0E52]/10 overflow-hidden hover:-translate-y-1 transition-transform group ${c.studio_id ? "cursor-pointer" : ""}`}
             >
               <div className="relative h-44 overflow-hidden">
                 <img src={c.image} alt={c.title} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-700" />
@@ -233,7 +249,10 @@ export default function Explore() {
                   <button
                     data-testid={`book-class-${c.id}`}
                     disabled={bookMutation.isPending}
-                    onClick={() => onBookClick(c.id)}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onBookClick(c.id);
+                    }}
                     className={`text-white rounded-full px-5 py-2 text-sm font-medium transition-colors disabled:opacity-50 ${
                       c.spots_left > 0
                         ? "bg-[#FF8552] hover:bg-[#E57545]"
