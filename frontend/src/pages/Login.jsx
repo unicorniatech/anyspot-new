@@ -4,8 +4,10 @@ import { ArrowLeft } from "lucide-react";
 import { supabase } from "../lib/supabase";
 import { api } from "../lib/api";
 import BrandMark from "../components/BrandMark";
+import { useI18n } from "../lib/i18n";
 
 export default function Login() {
+  const { t } = useI18n();
   const { state } = useLocation();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
@@ -75,14 +77,14 @@ export default function Login() {
 
       <div className="relative max-w-md mx-auto px-6 pt-16 pb-12">
         <Link to="/" className="inline-flex items-center gap-2 text-[#4A4A7A] hover:text-[#0E0E52] text-sm mb-12" data-testid="back-to-home">
-          <ArrowLeft size={14} /> Back to home
+          <ArrowLeft size={14} /> {t("auth.backHome")}
         </Link>
 
         <div className="mb-10">
           <BrandMark iconClassName="w-10 h-10" textClassName="text-[#0E0E52]" />
         </div>
 
-        <span className="anyspot-pill bg-[#CBF3D2] text-[#0E0E52]">Welcome back</span>
+        <span className="anyspot-pill bg-[#CBF3D2] text-[#0E0E52]">{t("auth.welcomeBack")}</span>
         <div className="mt-4 grid grid-cols-2 gap-2 rounded-2xl border border-[#0E0E52]/10 p-1 bg-white">
           <Link
             to="/login?role=customer"
@@ -90,7 +92,7 @@ export default function Login() {
               roleIntent === "customer" ? "bg-[#0E0E52] text-white" : "text-[#0E0E52] hover:bg-[#0E0E52]/5"
             }`}
           >
-            Customer login
+            {t("auth.customerLogin")}
           </Link>
           <Link
             to="/login?role=studio"
@@ -98,18 +100,18 @@ export default function Login() {
               roleIntent === "studio" ? "bg-[#0E0E52] text-white" : "text-[#0E0E52] hover:bg-[#0E0E52]/5"
             }`}
           >
-            Studio login
+            {t("auth.studioLogin")}
           </Link>
         </div>
         <h1 className="font-display text-4xl md:text-5xl mt-4 tracking-tighter font-semibold text-[#0E0E52] leading-[1.05]">
-          Sign in to move<br />
-          <span className="italic text-[#FF8552]">anywhere</span>.
+          {t("auth.signInLead")}<br />
+          <span className="italic text-[#FF8552]">{t("auth.anywhere")}</span>.
         </h1>
         <p className="mt-5 text-[#4A4A7A] leading-relaxed">
-          One pass to every boutique studio. Sign in with email or Google.
+          {t("auth.signInDescription")}
         </p>
         {roleIntent === "studio" && (
-          <p className="mt-2 text-sm text-[#0E0E52]">Studio mode: you will be directed to the partner workspace.</p>
+          <p className="mt-2 text-sm text-[#0E0E52]">{t("auth.studioModeLogin")}</p>
         )}
 
         {error && (
@@ -140,7 +142,7 @@ export default function Login() {
             disabled={loading}
             className="w-full bg-[#0E0E52] text-white py-3 rounded-full font-medium hover:bg-[#FF8552] transition-colors disabled:opacity-60"
           >
-            {loading ? "Signing in..." : "Sign in"}
+            {loading ? t("auth.signingIn") : t("auth.signIn")}
           </button>
         </form>
 
@@ -156,16 +158,15 @@ export default function Login() {
             <path d="M3.964 10.706A5.41 5.41 0 0 1 3.682 9c0-.592.102-1.167.282-1.706V4.962H.957A8.997 8.997 0 0 0 0 9c0 1.452.348 2.827.957 4.038l3.007-2.332z" fill="#0E0E52" opacity=".7"/>
             <path d="M9 3.58c1.321 0 2.508.454 3.44 1.345l2.582-2.58C13.463.891 11.426 0 9 0A8.997 8.997 0 0 0 .957 4.962L3.964 7.294C4.672 5.167 6.656 3.58 9 3.58z" fill="#0E0E52" opacity=".55"/>
           </svg>
-          Continue with Google
+          {t("auth.continueGoogle")}
         </button>
 
         <p className="mt-4 text-sm text-[#4A4A7A] text-center">
-          New here? <Link to={`/signup?role=${roleIntent}`} className="text-[#0E0E52] font-medium hover:text-[#FF8552]">Create an account</Link>
+          {t("auth.newHere")} <Link to={`/signup?role=${roleIntent}`} className="text-[#0E0E52] font-medium hover:text-[#FF8552]">{t("auth.createAccount")}</Link>
         </p>
 
         <p className="mt-6 text-xs text-[#4A4A7A] text-center">
-          By signing in you agree to our Terms &amp; Privacy. New members get
-          24 free credits.
+          {t("auth.bySigningIn")}
         </p>
       </div>
     </div>

@@ -13,6 +13,7 @@ import Login from "@/pages/Login";
 import Signup from "@/pages/Signup";
 import AuthCallback from "@/pages/AuthCallback";
 import { AuthProvider } from "@/lib/auth";
+import { I18nProvider } from "@/lib/i18n";
 
 function Layout() {
   return (
@@ -74,9 +75,11 @@ function AppRouter() {
 export default function App() {
   return (
     <BrowserRouter>
-      <AuthProvider>
-        <AppRouter />
-      </AuthProvider>
+      <I18nProvider>
+        <AuthProvider>
+          <AppRouter />
+        </AuthProvider>
+      </I18nProvider>
     </BrowserRouter>
   );
 }

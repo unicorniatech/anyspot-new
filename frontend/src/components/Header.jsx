@@ -2,6 +2,7 @@ import { Link, NavLink, useLocation, useNavigate } from "react-router-dom";
 import { Menu, LogOut } from "lucide-react";
 import { useState } from "react";
 import { useAuth } from "../lib/auth";
+import { useI18n } from "../lib/i18n";
 import BrandMark from "./BrandMark";
 import {
   DropdownMenu,
@@ -13,14 +14,15 @@ import {
 } from "./ui/dropdown-menu";
 
 const navItems = [
-  { to: "/", label: "Home", protected: false },
-  { to: "/explore", label: "Explore", protected: false },
-  { to: "/dashboard", label: "Dashboard", protected: true },
-  { to: "/partner", label: "Partner", protected: true, role: "studio" },
+  { to: "/", labelKey: "nav.home", protected: false },
+  { to: "/explore", labelKey: "nav.explore", protected: false },
+  { to: "/dashboard", labelKey: "nav.dashboard", protected: true },
+  { to: "/partner", labelKey: "nav.partner", protected: true, role: "studio" },
 ];
 
 export default function Header() {
   const { user, loading, logout } = useAuth();
+  const { language, setLanguage, t } = useI18n();
   const [open, setOpen] = useState(false);
   const loc = useLocation();
   const navigate = useNavigate();
@@ -55,7 +57,7 @@ export default function Header() {
             <NavLink
               key={n.to}
               to={n.to}
-              data-testid={`nav-${n.label.toLowerCase()}`}
+              data-testid={`nav-${n.to.replace("/", "") || "home"}`}
               className={({ isActive }) =>
                 `px-4 py-2 rounded-full text-sm font-medium transition-colors ${
                   isActive
@@ -65,7 +67,7 @@ export default function Header() {
               }
               end={n.to === "/"}
             >
-              {n.label}
+              {t(n.labelKey)}
             </NavLink>
           ))}
         </nav>
@@ -78,9 +80,21 @@ export default function Header() {
               className="hidden sm:flex items-center gap-2 rounded-full bg-[#0E0E52] text-white px-4 py-2 text-sm hover:bg-[#FF8552] transition-colors"
             >
               <span className="font-display font-semibold">{user.credits}</span>
-              <span className="text-white/70 text-xs uppercase tracking-widest">Credits</span>
+              <span className="text-white/70 text-xs uppercase tracking-widest">{t("nav.credits")}</span>
             </Link>
           )}
+
+          <label className="hidden md:flex items-center gap-2 text-xs text-[#4A4A7A]">
+            <span>{t("language.label")}</span>
+            <select
+              value={language}
+              onChange={(e) => setLanguage(e.target.value)}
+              className="rounded-full border border-[#0E0E52]/15 bg-white px-2 py-1 text-xs text-[#0E0E52]"
+            >
+              <option value="cs-CZ">{t("language.czech")}</option>
+              <option value="en">{t("language.english")}</option>
+            </select>
+          </label>
 
           {!loading && user ? (
             <DropdownMenu>
@@ -103,11 +117,11 @@ export default function Header() {
                 </DropdownMenuLabel>
                 <DropdownMenuSeparator />
                 <DropdownMenuItem onClick={() => navigate("/dashboard")} data-testid="menu-dashboard">
-                  My dashboard
+                  {t("nav.myDashboard")}
                 </DropdownMenuItem>
                 {user?.role === "studio" && (
                   <DropdownMenuItem onClick={() => navigate("/partner")} data-testid="menu-partner">
-                    Partner mode
+                    {t("nav.partnerMode")}
                   </DropdownMenuItem>
                 )}
                 <DropdownMenuSeparator />
@@ -116,7 +130,7 @@ export default function Header() {
                   onClick={onLogout}
                   className="text-[#FF8552] focus:text-[#FF8552]"
                 >
-                  <LogOut size={14} className="mr-2" /> Sign out
+                  <LogOut size={14} className="mr-2" /> {t("nav.signOut")}
                 </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
@@ -127,14 +141,14 @@ export default function Header() {
                 data-testid="signup-btn"
                 className="bg-[#FF8552] text-white px-5 py-2 rounded-full text-sm font-medium hover:bg-[#E57545] transition-colors"
               >
-                Join as customer
+                {t("nav.joinCustomer")}
               </Link>
               <Link
                 to="/signup?role=studio"
                 data-testid="signup-studio-btn"
                 className="text-[#0E0E52] px-4 py-2 rounded-full text-sm font-medium border border-[#0E0E52]/15 hover:bg-[#0E0E52]/5 transition-colors"
               >
-                List your studio
+                {t("nav.listStudio")}
               </Link>
             </div>
           ) : null}
@@ -152,6 +166,17 @@ export default function Header() {
       {open && (
         <div className="md:hidden border-t border-[#0E0E52]/10 bg-white">
           <div className="px-6 py-3 flex flex-col gap-2">
+            <label className="flex items-center gap-2 text-xs text-[#4A4A7A] py-1">
+              <span>{t("language.label")}</span>
+              <select
+                value={language}
+                onChange={(e) => setLanguage(e.target.value)}
+                className="rounded-full border border-[#0E0E52]/15 bg-white px-2 py-1 text-xs text-[#0E0E52]"
+              >
+                <option value="cs-CZ">{t("language.czech")}</option>
+                <option value="en">{t("language.english")}</option>
+              </select>
+            </label>
             {visibleNavItems.map((n) => (
               <Link
                 key={n.to}
@@ -161,7 +186,7 @@ export default function Header() {
                   loc.pathname === n.to ? "text-[#FF8552]" : "text-[#0E0E52]"
                 }`}
               >
-                {n.label}
+                {t(n.labelKey)}
               </Link>
             ))}
           </div>
