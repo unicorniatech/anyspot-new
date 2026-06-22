@@ -5,6 +5,7 @@ import Footer from "@/components/Footer";
 import ProtectedRoute from "@/components/ProtectedRoute";
 import PublicOnlyRoute from "@/components/PublicOnlyRoute";
 import Landing from "@/pages/Landing";
+import HowItWorks from "@/pages/HowItWorks";
 import Explore from "@/pages/Explore";
 import StudioProfile from "@/pages/StudioProfile";
 import Dashboard from "@/pages/Dashboard";
@@ -49,6 +50,7 @@ function AppRouter() {
       <Route path="/auth/callback" element={<AuthCallback />} />
       <Route element={<Layout />}>
         <Route path="/" element={<Landing />} />
+        <Route path="/how-it-works" element={<HowItWorks />} />
         <Route path="/explore" element={<Explore />} />
         <Route path="/studio/:id" element={<StudioProfile />} />
         <Route

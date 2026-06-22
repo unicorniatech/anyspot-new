@@ -1,9 +1,10 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { api } from "../lib/api";
 import { useState, useMemo } from "react";
-import { useSearchParams } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { Search, Filter, Clock, Sparkles } from "lucide-react";
 import { toast, Toaster } from "sonner";
+import { useAuth } from "../lib/auth";
 
 const CATEGORIES = ["All", "Pilates", "Yoga", "HIIT", "Cycling", "Strength"];
 const TIMES = [
@@ -21,6 +22,8 @@ function formatTime(iso) {
 }
 
 export default function Explore() {
+  const { user } = useAuth();
+  const navigate = useNavigate();
   const [params] = useSearchParams();
   const [search, setSearch] = useState(params.get("search") || "");
   const [category, setCategory] = useState(params.get("category") || "All");
@@ -74,6 +77,14 @@ export default function Explore() {
       toast.error(err?.response?.data?.detail || "Something went wrong");
     },
   });
+
+  const onBookClick = (classId) => {
+    if (!user) {
+      navigate("/signup?role=customer", { state: { from: "/explore" } });
+      return;
+    }
+    bookMutation.mutate(classId);
+  };
 
   return (
     <div className="bg-[#FDFDFD] min-h-screen">
@@ -213,7 +224,7 @@ export default function Explore() {
                   <button
                     data-testid={`book-class-${c.id}`}
                     disabled={bookMutation.isPending}
-                    onClick={() => bookMutation.mutate(c.id)}
+                    onClick={() => onBookClick(c.id)}
                     className={`text-white rounded-full px-5 py-2 text-sm font-medium transition-colors disabled:opacity-50 ${
                       c.spots_left > 0
                         ? "bg-[#FF8552] hover:bg-[#E57545]"

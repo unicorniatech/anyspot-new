@@ -15,6 +15,7 @@ import {
 
 const navItems = [
   { to: "/", labelKey: "nav.home", protected: false },
+  { to: "/how-it-works", labelKey: "nav.howItWorks", protected: false },
   { to: "/explore", labelKey: "nav.explore", protected: false },
   { to: "/dashboard", labelKey: "nav.dashboard", protected: true },
   { to: "/partner", labelKey: "nav.partner", protected: true, role: "studio" },
