@@ -607,7 +607,7 @@ async def get_current_user(request: Request) -> dict:
         raise
     except Exception as e:
         logger.exception("get_current_user failed: %s", e)
-        raise HTTPException(status_code=500, detail=f"Auth check error: {type(e).__name__}: {e}")
+        raise HTTPException(status_code=500, detail="Authentication check failed")
 
 class SessionExchange(BaseModel):
     session_id: str
@@ -899,8 +899,7 @@ async def demo_login(payload: DemoLoginRequest):
         raise
     except Exception as e:
         logger.exception("demo_login failed: %s", e)
-        # Return debug detail temporarily so we can diagnose the deployed 500
-        raise HTTPException(status_code=500, detail=f"Demo login error: {type(e).__name__}: {e}")
+        raise HTTPException(status_code=500, detail="Demo login failed")
 
 
 @api_router.post("/auth/role")
