@@ -249,7 +249,6 @@ class StudioBootstrapRequest(BaseModel):
 
 class UserProfileUpdateRequest(BaseModel):
     name: Optional[str] = None
-    phone: Optional[str] = None
 
 # ---------------- Seed Data ----------------
 
