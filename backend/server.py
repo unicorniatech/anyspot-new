@@ -613,7 +613,7 @@ async def get_current_user(request: Request) -> dict:
         raise
     except Exception as e:
         logger.exception("get_current_user failed: %s", e)
-        raise HTTPException(status_code=500, detail="Authentication check failed")
+        raise HTTPException(status_code=500, detail=f"Auth check error: {type(e).__name__}: {e}")
 
 class SessionExchange(BaseModel):
     session_id: str
