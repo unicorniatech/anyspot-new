@@ -79,7 +79,7 @@ export default function Explore() {
       } else {
         toast.success(t("explore.bookedToast"));
       }
-      qc.refetchQueries({ queryKey: ["auth-me"] });
+      qc.invalidateQueries({ queryKey: ["auth-me"] });
       qc.invalidateQueries({ queryKey: ["classes"] });
       qc.invalidateQueries({ queryKey: ["bookings"] });
     },

@@ -17,7 +17,7 @@ const navItems = [
   { to: "/", labelKey: "nav.home", protected: false },
   { to: "/how-it-works", labelKey: "nav.howItWorks", protected: false },
   { to: "/explore", labelKey: "nav.explore", protected: false },
-  { to: "/dashboard", labelKey: "nav.dashboard", protected: true },
+  { to: "/dashboard", labelKey: "nav.dashboard", protected: true, role: "customer" },
   { to: "/partner", labelKey: "nav.partner", protected: true, role: "studio" },
   { to: "/admin", labelKey: "nav.admin", protected: true, role: "admin" },
 ];
@@ -75,7 +75,7 @@ export default function Header() {
         </nav>
 
         <div className="flex items-center gap-3">
-          {!loading && user && (
+          {!loading && user && user.role === "customer" && (
             <Link
               to="/dashboard"
               data-testid="credit-pill"
@@ -143,9 +143,11 @@ export default function Header() {
                   <p className="text-xs text-[#4A4A7A] truncate">{user.email}</p>
                 </DropdownMenuLabel>
                 <DropdownMenuSeparator />
-                <DropdownMenuItem onClick={() => navigate("/dashboard")} data-testid="menu-dashboard">
-                  {t("nav.myDashboard")}
-                </DropdownMenuItem>
+                {user?.role === "customer" && (
+                  <DropdownMenuItem onClick={() => navigate("/dashboard")} data-testid="menu-dashboard">
+                    {t("nav.myDashboard")}
+                  </DropdownMenuItem>
+                )}
                 {user?.role === "studio" && (
                   <DropdownMenuItem onClick={() => navigate("/partner")} data-testid="menu-partner">
                     {t("nav.partnerMode")}

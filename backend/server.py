@@ -118,6 +118,7 @@ class Studio(BaseModel):
     instructor_image: str = ""
     instructor_bio: str = ""
     categories: List[str] = []
+    credits: int = 0
 
 class FitClass(BaseModel):
     model_config = ConfigDict(extra="ignore")
@@ -162,6 +163,18 @@ class User(BaseModel):
 
 class BookingCreate(BaseModel):
     class_id: str
+
+class Transaction(BaseModel):
+    model_config = ConfigDict(extra="ignore")
+    id: str = Field(default_factory=lambda: f"txn_{uuid.uuid4().hex[:12]}")
+    type: str = "booking"  # booking, cancellation, refund, topup
+    from_user_id: Optional[str] = None
+    to_studio_id: Optional[str] = None
+    booking_id: Optional[str] = None
+    amount: int
+    currency: str = "credits"
+    status: str = "completed"
+    created_at: str = Field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
 
 class ClassCreate(BaseModel):
     studio_id: str
@@ -1040,12 +1053,25 @@ async def create_booking(payload: BookingCreate, user: dict = Depends(get_curren
         image=cls["image"],
         status="waitlist" if is_waitlist else "confirmed",
     )
-    await db.bookings.insert_one(booking.model_dump())
+    booking_doc = booking.model_dump()
+    await db.bookings.insert_one(booking_doc)
     if is_waitlist:
         await db.classes.update_one({"id": cls["id"]}, {"$inc": {"waitlist_count": 1}})
     else:
         await db.users.update_one({"user_id": user["user_id"]}, {"$inc": {"credits": -cls["credits"]}})
         await db.classes.update_one({"id": cls["id"]}, {"$inc": {"spots_left": -1}})
+        # Credit the studio that owns the class
+        studio_id = cls.get("studio_id")
+        if studio_id:
+            await db.studios.update_one({"id": studio_id}, {"$inc": {"credits": cls["credits"]}})
+        # Record the transaction
+        await db.transactions.insert_one(Transaction(
+            type="booking",
+            from_user_id=user["user_id"],
+            to_studio_id=studio_id,
+            booking_id=booking_doc["id"],
+            amount=cls["credits"],
+        ).model_dump())
     return booking
 
 @api_router.post("/bookings/{booking_id}/cancel", response_model=Booking)
@@ -1066,6 +1092,19 @@ async def cancel_booking(booking_id: str, user: dict = Depends(get_current_user)
     # Confirmed cancellation: refund + restore spot
     await db.users.update_one({"user_id": user["user_id"]}, {"$inc": {"credits": booking["credits"]}})
     await db.classes.update_one({"id": booking["class_id"]}, {"$inc": {"spots_left": 1}})
+    # Refund the studio
+    cls = await db.classes.find_one({"id": booking["class_id"]}, {"_id": 0})
+    studio_id = cls.get("studio_id") if cls else None
+    if studio_id:
+        await db.studios.update_one({"id": studio_id}, {"$inc": {"credits": -booking["credits"]}})
+    # Record the refund transaction
+    await db.transactions.insert_one(Transaction(
+        type="refund",
+        from_user_id=user["user_id"],
+        to_studio_id=studio_id,
+        booking_id=booking["id"],
+        amount=-booking["credits"],
+    ).model_dump())
 
     # Promote earliest waitlist booking (any user) if any
     promote = await db.bookings.find_one(
@@ -1082,6 +1121,15 @@ async def cancel_booking(booking_id: str, user: dict = Depends(get_current_user)
                 {"id": booking["class_id"]},
                 {"$inc": {"spots_left": -1, "waitlist_count": -1}},
             )
+            if studio_id:
+                await db.studios.update_one({"id": studio_id}, {"$inc": {"credits": promote["credits"]}})
+            await db.transactions.insert_one(Transaction(
+                type="booking",
+                from_user_id=promote["user_id"],
+                to_studio_id=studio_id,
+                booking_id=promote["id"],
+                amount=promote["credits"],
+            ).model_dump())
 
     booking["status"] = "cancelled"
     return booking
@@ -1416,24 +1464,16 @@ async def admin_bookings(_: dict = Depends(get_current_admin_user)):
 
 @api_router.get("/admin/transactions")
 async def admin_transactions(_: dict = Depends(get_current_admin_user)):
-    docs = await db.bookings.find(
-        {"status": {"$in": ["confirmed", "cancelled"]}}, {"_id": 0}
-    ).sort("created_at", -1).limit(500).to_list(500)
-    transactions = []
-    for b in docs:
-        transactions.append({
-            "id": b["id"],
-            "type": "booking",
-            "status": b["status"],
-            "user_id": b["user_id"],
-            "studio_id": b.get("studio_id"),
-            "class_id": b["class_id"],
-            "class_title": b.get("class_title"),
-            "studio_name": b.get("studio_name"),
-            "credits": b.get("credits", 0),
-            "created_at": b.get("created_at"),
-        })
-    return transactions
+    txns = await db.transactions.find({}, {"_id": 0}).sort("created_at", -1).limit(500).to_list(500)
+    # Enrich with user and studio names
+    user_ids = {t["from_user_id"] for t in txns if t.get("from_user_id")}
+    studio_ids = {t["to_studio_id"] for t in txns if t.get("to_studio_id")}
+    users = {u["user_id"]: u for u in await db.users.find({"user_id": {"$in": list(user_ids)}}, {"_id": 0}).to_list(len(user_ids))}
+    studios = {s["id"]: s for s in await db.studios.find({"id": {"$in": list(studio_ids)}}, {"_id": 0}).to_list(len(studio_ids))}
+    for t in txns:
+        t["user_name"] = users.get(t.get("from_user_id"), {}).get("name", "Unknown")
+        t["studio_name"] = studios.get(t.get("to_studio_id"), {}).get("name", "Unknown")
+    return txns
 
 
 app.include_router(api_router)

@@ -213,11 +213,12 @@ export default function Partner() {
         </div>
 
         {/* KPI Grid */}
-        <div className="mt-10 grid grid-cols-2 lg:grid-cols-4 gap-5">
+        <div className="mt-10 grid grid-cols-2 lg:grid-cols-5 gap-5">
           <StatCard icon={TrendingUp} label={t("partner.reservations7d")} value={overview?.reservations_week ?? "—"} accent />
           <StatCard icon={Calendar} label={t("partner.reservations30d")} value={overview?.reservations_month ?? "—"} />
           <StatCard icon={Coins} label={t("partner.credits7d")} value={overview?.credits_week ?? "—"} />
           <StatCard icon={Sparkles} label={t("partner.activeClasses")} value={overview?.active_classes ?? "—"} />
+          <StatCard icon={Coins} label={t("partner.balance")} value={studio?.credits ?? "—"} />
         </div>
 
         {/* Roster + Top */}

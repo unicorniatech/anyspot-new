@@ -185,7 +185,7 @@ export default function Admin() {
               <thead>
                 <tr className="text-left text-[#4A4A7A] border-b border-[#0E0E52]/10">
                   <th className="pb-3 font-medium">{t("admin.type")}</th>
-                  <th className="pb-3 font-medium">{t("admin.classTitle")}</th>
+                  <th className="pb-3 font-medium">{t("admin.user")}</th>
                   <th className="pb-3 font-medium">{t("admin.studio")}</th>
                   <th className="pb-3 font-medium">{t("admin.credits")}</th>
                   <th className="pb-3 font-medium">{t("admin.status")}</th>
@@ -196,13 +196,13 @@ export default function Admin() {
                 {transactions.slice(0, 10).map((tx) => (
                   <tr key={tx.id} className="border-b border-[#0E0E52]/5 last:border-0">
                     <td className="py-3 text-[#0E0E52]">{tx.type}</td>
-                    <td className="py-3 text-[#0E0E52] font-medium">{tx.class_title || "—"}</td>
+                    <td className="py-3 text-[#0E0E52] font-medium">{tx.user_name || "—"}</td>
                     <td className="py-3 text-[#4A4A7A]">{tx.studio_name || "—"}</td>
-                    <td className="py-3 text-[#0E0E52]">{tx.credits}</td>
+                    <td className="py-3 text-[#0E0E52]">{tx.amount}</td>
                     <td className="py-3">
                       <span
                         className={`anyspot-pill ${
-                          tx.status === "confirmed"
+                          tx.status === "completed"
                             ? "bg-[#CBF3D2] text-[#0E0E52]"
                             : "bg-[#FF8552]/10 text-[#FF8552]"
                         }`}
