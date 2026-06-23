@@ -36,7 +36,6 @@ function Section({ title, children }) {
 export default function Admin() {
   const { t } = useI18n();
   const { user, loading } = useAuth();
-  const navigate = useNavigate();
 
   const { data: overview, isLoading } = useQuery({
     queryKey: ["admin-overview"],
