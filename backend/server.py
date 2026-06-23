@@ -869,38 +869,45 @@ async def auth_me(user: dict = Depends(get_current_user)):
 
 @api_router.post("/auth/demo/login")
 async def demo_login(payload: DemoLoginRequest):
-    if not DEMO_ENABLED:
-        raise HTTPException(status_code=403, detail="Demo login is disabled")
-    account = DEMO_USERS.get(payload.email.lower())
-    if not account or account.get("password") != payload.password:
-        raise HTTPException(status_code=401, detail="Invalid demo credentials")
+    try:
+        if not DEMO_ENABLED:
+            raise HTTPException(status_code=403, detail="Demo login is disabled")
+        account = DEMO_USERS.get(payload.email.lower())
+        if not account or account.get("password") != payload.password:
+            raise HTTPException(status_code=401, detail="Invalid demo credentials")
 
-    # Sync demo user into the database so role-specific endpoints work
-    existing = await db.users.find_one({"user_id": account["user_id"]}, {"_id": 0})
-    if not existing:
-        await db.users.insert_one(User(
-            user_id=account["user_id"],
-            email=account["email"],
-            name=account["name"],
-            role=account["role"],
-            picture=account.get("picture", ""),
-            credits=account.get("credits", 0),
-        ).model_dump())
+        # Sync demo user into the database so role-specific endpoints work
+        existing = await db.users.find_one({"user_id": account["user_id"]}, {"_id": 0})
+        if not existing:
+            await db.users.insert_one(User(
+                user_id=account["user_id"],
+                email=account["email"],
+                name=account["name"],
+                role=account["role"],
+                picture=account.get("picture", ""),
+                credits=account.get("credits", 0),
+            ).model_dump())
 
-    # Ensure the gym demo account has a studio to manage
-    if account["role"] == "studio":
-        studio = await get_primary_studio_for_user(account["user_id"])
-        if not studio:
-            await create_studio_for_owner(
-                {"user_id": account["user_id"]},
-                studio_name="Demo Gym Studio",
-                address="123 Demo Street, Demo City",
-                contact_name=account["name"],
-                contact_phone="",
-            )
+        # Ensure the gym demo account has a studio to manage
+        if account["role"] == "studio":
+            studio = await get_primary_studio_for_user(account["user_id"])
+            if not studio:
+                await create_studio_for_owner(
+                    {"user_id": account["user_id"]},
+                    studio_name="Demo Gym Studio",
+                    address="123 Demo Street, Demo City",
+                    contact_name=account["name"],
+                    contact_phone="",
+                )
 
-    token = create_demo_token(account["user_id"])
-    return {"token": token, "user": account}
+        token = create_demo_token(account["user_id"])
+        return {"token": token, "user": account}
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.exception("demo_login failed: %s", e)
+        # Return debug detail temporarily so we can diagnose the deployed 500
+        raise HTTPException(status_code=500, detail=f"Demo login error: {type(e).__name__}: {e}")
 
 
 @api_router.post("/auth/role")
