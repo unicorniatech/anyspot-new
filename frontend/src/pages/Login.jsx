@@ -1,24 +1,48 @@
 import { useState } from "react";
 import { useLocation, Link, useNavigate, useSearchParams } from "react-router-dom";
-import { ArrowLeft } from "lucide-react";
+import { ArrowLeft, FlaskConical } from "lucide-react";
 import { supabase } from "../lib/supabase";
-import { api } from "../lib/api";
+import { api, setDemoToken } from "../lib/api";
 import BrandMark from "../components/BrandMark";
 import { useI18n } from "../lib/i18n";
+import { useAuth } from "../lib/auth";
+
+const demoAccounts = [
+  { label: "Admin", email: "admin@anyspot.demo", password: "demo-admin-2024", role: "admin", target: "/admin" },
+  { label: "Gym", email: "gym@anyspot.demo", password: "demo-gym-2024", role: "studio", target: "/partner" },
+  { label: "User", email: "user@anyspot.demo", password: "demo-user-2024", role: "customer", target: "/dashboard" },
+];
 
 export default function Login() {
   const { t } = useI18n();
   const { state } = useLocation();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
+  const { refresh } = useAuth();
   const roleParam = (searchParams.get("role") || "").toLowerCase();
-  const roleIntent = roleParam === "studio" ? "studio" : "customer";
-  const defaultTarget = roleIntent === "studio" ? "/partner" : "/dashboard";
+  const roleIntent = ["studio", "admin"].includes(roleParam) ? roleParam : "customer";
+  const defaultTarget = roleIntent === "studio" ? "/partner" : roleIntent === "admin" ? "/admin" : "/dashboard";
   const from = state?.from || defaultTarget;
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState(state?.error || "");
   const [loading, setLoading] = useState(false);
+  const [demoLoading, setDemoLoading] = useState(null);
+
+  const loginAsDemo = async (account) => {
+    setError("");
+    setDemoLoading(account.label);
+    try {
+      const { token } = await api.demoLogin(account.email, account.password);
+      setDemoToken(token);
+      await refresh();
+      navigate(account.target, { replace: true });
+    } catch (err) {
+      setError(err?.response?.data?.detail || err.message || t("auth.couldNotSignIn"));
+    } finally {
+      setDemoLoading(null);
+    }
+  };
 
   const signInWithPassword = async (e) => {
     e.preventDefault();
@@ -35,7 +59,7 @@ export default function Login() {
       return;
     }
 
-    if (roleIntent) {
+    if (roleIntent === "customer" || roleIntent === "studio") {
       try {
         await api.authUpdateRole(roleIntent);
       } catch {
@@ -85,7 +109,7 @@ export default function Login() {
         </div>
 
         <span className="anyspot-pill bg-[#CBF3D2] text-[#0E0E52]">{t("auth.welcomeBack")}</span>
-        <div className="mt-4 grid grid-cols-2 gap-2 rounded-2xl border border-[#0E0E52]/10 p-1 bg-white">
+        <div className="mt-4 grid grid-cols-3 gap-2 rounded-2xl border border-[#0E0E52]/10 p-1 bg-white">
           <Link
             to="/login?role=customer"
             className={`text-center rounded-xl px-3 py-2 text-sm font-medium transition-colors ${
@@ -101,6 +125,14 @@ export default function Login() {
             }`}
           >
             {t("auth.studioLogin")}
+          </Link>
+          <Link
+            to="/login?role=admin"
+            className={`text-center rounded-xl px-3 py-2 text-sm font-medium transition-colors ${
+              roleIntent === "admin" ? "bg-[#0E0E52] text-white" : "text-[#0E0E52] hover:bg-[#0E0E52]/5"
+            }`}
+          >
+            {t("auth.adminLogin")}
           </Link>
         </div>
         <h1 className="font-display text-4xl md:text-5xl mt-4 tracking-tighter font-semibold text-[#0E0E52] leading-[1.05]">
@@ -161,7 +193,30 @@ export default function Login() {
           {t("auth.continueGoogle")}
         </button>
 
-        <p className="mt-4 text-sm text-[#4A4A7A] text-center">
+        <div className="mt-6 border-t border-[#0E0E52]/10 pt-6">
+          <div className="flex items-center gap-2 mb-3">
+            <FlaskConical size={16} className="text-[#FF8552]" />
+            <span className="text-sm font-medium text-[#0E0E52]">Demo accounts</span>
+          </div>
+          <div className="grid grid-cols-3 gap-2">
+            {demoAccounts.map((account) => (
+              <button
+                key={account.label}
+                type="button"
+                disabled={demoLoading !== null}
+                onClick={() => loginAsDemo(account)}
+                className="text-center rounded-xl px-2 py-3 text-xs font-medium border border-[#0E0E52]/10 hover:bg-[#CBF3D2]/30 hover:border-[#CBF3D2] transition-colors disabled:opacity-60"
+              >
+                <span className="block text-[#0E0E52] font-semibold">{account.label}</span>
+                <span className="block text-[#4A4A7A] mt-1">{account.email}</span>
+                <span className="block text-[#9A9A9A] mt-1">{account.password}</span>
+                {demoLoading === account.label && <span className="block text-[#FF8552] mt-1">...</span>}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        <p className="mt-6 text-sm text-[#4A4A7A] text-center">
           {t("auth.newHere")} <Link to={`/signup?role=${roleIntent}`} className="text-[#0E0E52] font-medium hover:text-[#FF8552]">{t("auth.createAccount")}</Link>
         </p>
 

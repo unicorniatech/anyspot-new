@@ -10,6 +10,7 @@ import Explore from "@/pages/Explore";
 import StudioProfile from "@/pages/StudioProfile";
 import Dashboard from "@/pages/Dashboard";
 import Partner from "@/pages/Partner";
+import Admin from "@/pages/Admin";
 import Login from "@/pages/Login";
 import Signup from "@/pages/Signup";
 import AuthCallback from "@/pages/AuthCallback";
@@ -66,6 +67,14 @@ function AppRouter() {
           element={
             <ProtectedRoute role="studio">
               <Partner />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/admin"
+          element={
+            <ProtectedRoute role="admin">
+              <Admin />
             </ProtectedRoute>
           }
         />

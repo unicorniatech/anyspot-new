@@ -5,6 +5,7 @@ import os
 import logging
 import httpx
 import re
+import jwt
 from pathlib import Path
 from pydantic import BaseModel, Field, ConfigDict
 from typing import Any, Dict, List, Optional
@@ -52,6 +53,38 @@ def is_allowed_origin(origin: Optional[str]) -> bool:
 
 
 CORS_ORIGINS = parse_cors_origins(os.environ.get('CORS_ORIGINS', '*'))
+
+DEMO_ENABLED = os.environ.get('DEMO_ENABLED', 'true').lower() == 'true'
+DEMO_JWT_SECRET = os.environ.get('DEMO_JWT_SECRET', 'anyspot-demo-secret-change-in-production')
+DEMO_USERS = {
+    "admin@anyspot.demo": {
+        "user_id": "demo_admin",
+        "email": "admin@anyspot.demo",
+        "name": "Demo Admin",
+        "role": "admin",
+        "password": "demo-admin-2024",
+        "picture": "",
+        "credits": 0,
+    },
+    "gym@anyspot.demo": {
+        "user_id": "demo_gym",
+        "email": "gym@anyspot.demo",
+        "name": "Demo Gym",
+        "role": "studio",
+        "password": "demo-gym-2024",
+        "picture": "",
+        "credits": 0,
+    },
+    "user@anyspot.demo": {
+        "user_id": "demo_user",
+        "email": "user@anyspot.demo",
+        "name": "Demo User",
+        "role": "customer",
+        "password": "demo-user-2024",
+        "picture": "",
+        "credits": 100,
+    },
+}
 
 client = None
 if SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY:
@@ -200,6 +233,11 @@ class DuplicateClassRequest(BaseModel):
 
 class AuthRoleUpdateRequest(BaseModel):
     role: str
+
+
+class DemoLoginRequest(BaseModel):
+    email: str
+    password: str
 
 
 class StudioBootstrapRequest(BaseModel):
@@ -473,8 +511,29 @@ async def ensure_preview_user():
             status=status,
         ).model_dump())
 
+def create_demo_token(user_id: str) -> str:
+    now = datetime.now(timezone.utc)
+    payload = {
+        "sub": user_id,
+        "demo": True,
+        "iat": now,
+        "exp": now + timedelta(days=7),
+    }
+    return jwt.encode(payload, DEMO_JWT_SECRET, algorithm="HS256")
+
+
+def verify_demo_token(token: str) -> Optional[dict]:
+    try:
+        payload = jwt.decode(token, DEMO_JWT_SECRET, algorithms=["HS256"])
+        if payload.get("demo"):
+            return DEMO_USERS.get(payload.get("sub"))
+    except Exception as e:
+        logger.debug("Demo token verification failed: %s", e)
+    return None
+
+
 async def get_current_user(request: Request) -> dict:
-    """Resolve current user from Authorization Bearer JWT only.
+    """Resolve current user from Authorization Bearer JWT or demo token.
     Legacy cookie/session auth is intentionally ignored to avoid accidental auto-login
     from stale browser cookies."""
     try:
@@ -491,6 +550,11 @@ async def get_current_user(request: Request) -> dict:
                     user = await db.users.find_one({"user_id": PREVIEW_USER_ID}, {"_id": 0})
                 return user
             raise HTTPException(status_code=401, detail="Not authenticated")
+
+        # Demo tokens take precedence for quick sandbox access
+        demo_user = verify_demo_token(token)
+        if demo_user:
+            return demo_user
 
         # Prefer Supabase JWT auth when token is a bearer JWT
         supa = await get_supabase_user_from_token(token)
@@ -610,7 +674,7 @@ def normalize_role(value: Optional[str]) -> Optional[str]:
     if not value:
         return None
     v = str(value).strip().lower()
-    if v in {"customer", "studio"}:
+    if v in {"customer", "studio", "admin", "superadmin"}:
         return v
     return None
 
@@ -624,6 +688,10 @@ def require_role(user: dict, role: str) -> dict:
 
 async def get_current_studio_user(user: dict = Depends(get_current_user)):
     return require_role(user, "studio")
+
+
+async def get_current_admin_user(user: dict = Depends(get_current_user)):
+    return require_role(user, "admin")
 
 
 async def get_primary_studio_for_user(user_id: str) -> Optional[dict]:
@@ -798,6 +866,41 @@ async def auth_me(user: dict = Depends(get_current_user)):
         logger.exception("auth/me failed: %s", e)
         raise HTTPException(status_code=500, detail="Auth check failed")
 
+
+@api_router.post("/auth/demo/login")
+async def demo_login(payload: DemoLoginRequest):
+    if not DEMO_ENABLED:
+        raise HTTPException(status_code=403, detail="Demo login is disabled")
+    account = DEMO_USERS.get(payload.email.lower())
+    if not account or account.get("password") != payload.password:
+        raise HTTPException(status_code=401, detail="Invalid demo credentials")
+
+    # Sync demo user into the database so role-specific endpoints work
+    existing = await db.users.find_one({"user_id": account["user_id"]}, {"_id": 0})
+    if not existing:
+        await db.users.insert_one(User(
+            user_id=account["user_id"],
+            email=account["email"],
+            name=account["name"],
+            role=account["role"],
+            picture=account.get("picture", ""),
+            credits=account.get("credits", 0),
+        ).model_dump())
+
+    # Ensure the gym demo account has a studio to manage
+    if account["role"] == "studio":
+        studio = await get_primary_studio_for_user(account["user_id"])
+        if not studio:
+            await create_studio_for_owner(
+                {"user_id": account["user_id"]},
+                studio_name="Demo Gym Studio",
+                address="123 Demo Street, Demo City",
+                contact_name=account["name"],
+                contact_phone="",
+            )
+
+    token = create_demo_token(account["user_id"])
+    return {"token": token, "user": account}
 
 
 @api_router.post("/auth/role")
@@ -1268,6 +1371,71 @@ async def partner_delete_class(class_id: str, _: dict = Depends(get_current_stud
             await db.users.update_one({"user_id": b["user_id"]}, {"$inc": {"credits": b["credits"]}})
     await db.classes.delete_one({"id": class_id})
     return {"ok": True, "cancelled": len(active)}
+
+
+@api_router.get("/admin/overview")
+async def admin_overview(_: dict = Depends(get_current_admin_user)):
+    total_users = await db.users.count_documents({})
+    total_studios = await db.studios.count_documents({})
+    total_classes = await db.classes.count_documents({})
+    total_bookings = await db.bookings.count_documents({})
+    confirmed_bookings = await db.bookings.count_documents({"status": "confirmed"})
+    cancelled_bookings = await db.bookings.count_documents({"status": "cancelled"})
+    recent_users = await db.users.find({}, {"_id": 0}).sort("created_at", -1).limit(5).to_list(5)
+    recent_bookings = await db.bookings.find({}, {"_id": 0}).sort("created_at", -1).limit(5).to_list(5)
+    return {
+        "counts": {
+            "users": total_users,
+            "studios": total_studios,
+            "classes": total_classes,
+            "bookings": total_bookings,
+            "confirmed": confirmed_bookings,
+            "cancelled": cancelled_bookings,
+        },
+        "recent_users": recent_users,
+        "recent_bookings": recent_bookings,
+    }
+
+
+@api_router.get("/admin/users")
+async def admin_users(_: dict = Depends(get_current_admin_user)):
+    docs = await db.users.find({}, {"_id": 0}).sort("created_at", -1).limit(200).to_list(200)
+    return docs
+
+
+@api_router.get("/admin/studios")
+async def admin_studios(_: dict = Depends(get_current_admin_user)):
+    docs = await db.studios.find({}, {"_id": 0}).sort("created_at", -1).limit(200).to_list(200)
+    return docs
+
+
+@api_router.get("/admin/bookings")
+async def admin_bookings(_: dict = Depends(get_current_admin_user)):
+    docs = await db.bookings.find({}, {"_id": 0}).sort("created_at", -1).limit(500).to_list(500)
+    return docs
+
+
+@api_router.get("/admin/transactions")
+async def admin_transactions(_: dict = Depends(get_current_admin_user)):
+    docs = await db.bookings.find(
+        {"status": {"$in": ["confirmed", "cancelled"]}}, {"_id": 0}
+    ).sort("created_at", -1).limit(500).to_list(500)
+    transactions = []
+    for b in docs:
+        transactions.append({
+            "id": b["id"],
+            "type": "booking",
+            "status": b["status"],
+            "user_id": b["user_id"],
+            "studio_id": b.get("studio_id"),
+            "class_id": b["class_id"],
+            "class_title": b.get("class_title"),
+            "studio_name": b.get("studio_name"),
+            "credits": b.get("credits", 0),
+            "created_at": b.get("created_at"),
+        })
+    return transactions
+
 
 app.include_router(api_router)
 

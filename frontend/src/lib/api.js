@@ -3,13 +3,32 @@ import { supabase } from "./supabase";
 
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
 export const API = `${BACKEND_URL}/api`;
+export const DEMO_TOKEN_KEY = "anyspot:demo-token";
 
 export const http = axios.create({
   baseURL: API,
   withCredentials: false,
 });
 
+export function getDemoToken() {
+  return localStorage.getItem(DEMO_TOKEN_KEY);
+}
+
+export function setDemoToken(token) {
+  if (token) {
+    localStorage.setItem(DEMO_TOKEN_KEY, token);
+  } else {
+    localStorage.removeItem(DEMO_TOKEN_KEY);
+  }
+}
+
 http.interceptors.request.use(async (config) => {
+  const demoToken = getDemoToken();
+  if (demoToken) {
+    config.headers = config.headers || {};
+    config.headers.Authorization = `Bearer ${demoToken}`;
+    return config;
+  }
   const { data } = await supabase.auth.getSession();
   const token = data?.session?.access_token;
   if (token) {
@@ -23,6 +42,8 @@ export const api = {
   // Auth
   authMe: () => http.get("/auth/me").then((r) => r.data),
   authUpdateRole: (role) => http.post("/auth/role", { role }).then((r) => r.data),
+  demoLogin: (email, password) =>
+    http.post("/auth/demo/login", { email, password }).then((r) => r.data),
   logout: () => http.post("/auth/logout").then((r) => r.data),
   registerStudio: (payload) => http.post("/studio/register", payload).then((r) => r.data),
 
@@ -62,4 +83,11 @@ export const api = {
   duplicateClass: (id, data) =>
     http.post(`/partner/classes/${id}/duplicate`, data).then((r) => r.data),
   deleteClass: (id) => http.delete(`/partner/classes/${id}`).then((r) => r.data),
+
+  // Admin
+  adminOverview: () => http.get("/admin/overview").then((r) => r.data),
+  adminUsers: () => http.get("/admin/users").then((r) => r.data),
+  adminStudios: () => http.get("/admin/studios").then((r) => r.data),
+  adminBookings: () => http.get("/admin/bookings").then((r) => r.data),
+  adminTransactions: () => http.get("/admin/transactions").then((r) => r.data),
 };

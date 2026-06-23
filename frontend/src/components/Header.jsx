@@ -19,6 +19,7 @@ const navItems = [
   { to: "/explore", labelKey: "nav.explore", protected: false },
   { to: "/dashboard", labelKey: "nav.dashboard", protected: true },
   { to: "/partner", labelKey: "nav.partner", protected: true, role: "studio" },
+  { to: "/admin", labelKey: "nav.admin", protected: true, role: "admin" },
 ];
 
 export default function Header() {
@@ -85,17 +86,42 @@ export default function Header() {
             </Link>
           )}
 
-          <label className="hidden md:flex items-center gap-2 text-xs text-[#4A4A7A]">
-            <span>{t("language.label")}</span>
-            <select
-              value={language}
-              onChange={(e) => setLanguage(e.target.value)}
-              className="rounded-full border border-[#0E0E52]/15 bg-white px-2 py-1 text-xs text-[#0E0E52]"
+          <div className="hidden md:flex items-center gap-1">
+            <button
+              aria-label="English"
+              onClick={() => setLanguage("en")}
+              className={`w-7 h-7 rounded-full overflow-hidden border-2 transition-all ${
+                language === "en" ? "border-[#FF8552] ring-2 ring-[#FF8552]/30" : "border-transparent"
+              }`}
             >
-              <option value="cs-CZ">{t("language.czech")}</option>
-              <option value="en">{t("language.english")}</option>
-            </select>
-          </label>
+              <svg viewBox="0 0 640 480" className="w-full h-full object-cover">
+                <path fill="#bd3d44" d="M0 0h640v48H0z" />
+                <path fill="#fff" d="M0 48h640v48H0z" />
+                <path fill="#bd3d44" d="M0 96h640v48H0z" />
+                <path fill="#fff" d="M0 144h640v48H0z" />
+                <path fill="#bd3d44" d="M0 192h640v48H0z" />
+                <path fill="#fff" d="M0 240h640v48H0z" />
+                <path fill="#bd3d44" d="M0 288h640v48H0z" />
+                <path fill="#fff" d="M0 336h640v48H0z" />
+                <path fill="#bd3d44" d="M0 384h640v48H0z" />
+                <path fill="#fff" d="M0 432h640v48H0z" />
+                <path fill="#192f5d" d="M0 0h320v288H0z" />
+              </svg>
+            </button>
+            <button
+              aria-label="Čeština"
+              onClick={() => setLanguage("cs-CZ")}
+              className={`w-7 h-7 rounded-full overflow-hidden border-2 transition-all ${
+                language === "cs-CZ" ? "border-[#FF8552] ring-2 ring-[#FF8552]/30" : "border-transparent"
+              }`}
+            >
+              <svg viewBox="0 0 640 480" className="w-full h-full object-cover">
+                <path fill="#fff" d="M0 0h640v480H0z" />
+                <path fill="#d7141a" d="M0 320h640v160H0z" />
+                <path fill="#11457e" d="M0 0h640v160H0z" />
+              </svg>
+            </button>
+          </div>
 
           {!loading && user ? (
             <DropdownMenu>
@@ -123,6 +149,11 @@ export default function Header() {
                 {user?.role === "studio" && (
                   <DropdownMenuItem onClick={() => navigate("/partner")} data-testid="menu-partner">
                     {t("nav.partnerMode")}
+                  </DropdownMenuItem>
+                )}
+                {user?.role === "admin" && (
+                  <DropdownMenuItem onClick={() => navigate("/admin")} data-testid="menu-admin">
+                    {t("nav.admin")}
                   </DropdownMenuItem>
                 )}
                 <DropdownMenuSeparator />
@@ -167,17 +198,43 @@ export default function Header() {
       {open && (
         <div className="md:hidden border-t border-[#0E0E52]/10 bg-white">
           <div className="px-6 py-3 flex flex-col gap-2">
-            <label className="flex items-center gap-2 text-xs text-[#4A4A7A] py-1">
-              <span>{t("language.label")}</span>
-              <select
-                value={language}
-                onChange={(e) => setLanguage(e.target.value)}
-                className="rounded-full border border-[#0E0E52]/15 bg-white px-2 py-1 text-xs text-[#0E0E52]"
+            <div className="flex items-center gap-2 py-1">
+              <span className="text-xs text-[#4A4A7A]">{t("language.label")}</span>
+              <button
+                aria-label="English"
+                onClick={() => setLanguage("en")}
+                className={`w-7 h-7 rounded-full overflow-hidden border-2 transition-all ${
+                  language === "en" ? "border-[#FF8552] ring-2 ring-[#FF8552]/30" : "border-transparent"
+                }`}
               >
-                <option value="cs-CZ">{t("language.czech")}</option>
-                <option value="en">{t("language.english")}</option>
-              </select>
-            </label>
+                <svg viewBox="0 0 640 480" className="w-full h-full object-cover">
+                  <path fill="#bd3d44" d="M0 0h640v48H0z" />
+                  <path fill="#fff" d="M0 48h640v48H0z" />
+                  <path fill="#bd3d44" d="M0 96h640v48H0z" />
+                  <path fill="#fff" d="M0 144h640v48H0z" />
+                  <path fill="#bd3d44" d="M0 192h640v48H0z" />
+                  <path fill="#fff" d="M0 240h640v48H0z" />
+                  <path fill="#bd3d44" d="M0 288h640v48H0z" />
+                  <path fill="#fff" d="M0 336h640v48H0z" />
+                  <path fill="#bd3d44" d="M0 384h640v48H0z" />
+                  <path fill="#fff" d="M0 432h640v48H0z" />
+                  <path fill="#192f5d" d="M0 0h320v288H0z" />
+                </svg>
+              </button>
+              <button
+                aria-label="Čeština"
+                onClick={() => setLanguage("cs-CZ")}
+                className={`w-7 h-7 rounded-full overflow-hidden border-2 transition-all ${
+                  language === "cs-CZ" ? "border-[#FF8552] ring-2 ring-[#FF8552]/30" : "border-transparent"
+                }`}
+              >
+                <svg viewBox="0 0 640 480" className="w-full h-full object-cover">
+                  <path fill="#fff" d="M0 0h640v480H0z" />
+                  <path fill="#d7141a" d="M0 320h640v160H0z" />
+                  <path fill="#11457e" d="M0 0h640v160H0z" />
+                </svg>
+              </button>
+            </div>
             {!loading && !user && (
               <div className="grid grid-cols-2 gap-2 pt-1">
                 <Link

@@ -1,6 +1,6 @@
 import { createContext, useContext, useEffect } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { api } from "./api";
+import { api, getDemoToken, setDemoToken } from "./api";
 import { supabase } from "./supabase";
 
 const AuthCtx = createContext({ user: null, loading: true, refresh: async () => null, logout: async () => {} });
@@ -8,6 +8,10 @@ const AuthCtx = createContext({ user: null, loading: true, refresh: async () => 
 const AUTH_KEY = ["auth-me"];
 
 async function fetchAuthUser() {
+  const demoToken = getDemoToken();
+  if (demoToken) {
+    return api.authMe().catch(() => null);
+  }
   const { data } = await supabase.auth.getSession();
   const token = data?.session?.access_token;
   if (!token) return null;
@@ -47,6 +51,7 @@ export function AuthProvider({ children }) {
   const setUser = (u) => qc.setQueryData(AUTH_KEY, u);
 
   const logout = async () => {
+    setDemoToken(null);
     try {
       await supabase.auth.signOut();
     } catch {
@@ -57,7 +62,7 @@ export function AuthProvider({ children }) {
   };
 
   return (
-    <AuthCtx.Provider value={{ user: user || null, loading, refresh, setUser, logout }}>
+    <AuthCtx.Provider value={{ user: user || null, loading, refresh, setUser, setDemoToken, logout }}>
       {children}
     </AuthCtx.Provider>
   );
