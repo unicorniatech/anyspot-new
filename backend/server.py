@@ -520,11 +520,14 @@ def create_demo_token(user_id: str) -> str:
     return jwt.encode(payload, DEMO_JWT_SECRET, algorithm="HS256")
 
 
+DEMO_USERS_BY_ID = {account["user_id"]: account for account in DEMO_USERS.values()}
+
+
 def verify_demo_token(token: str) -> Optional[dict]:
     try:
         payload = jwt.decode(token, DEMO_JWT_SECRET, algorithms=["HS256"])
         if payload.get("demo"):
-            return DEMO_USERS.get(payload.get("sub"))
+            return DEMO_USERS_BY_ID.get(payload.get("sub"))
     except Exception as e:
         logger.debug("Demo token verification failed: %s", e)
     return None
