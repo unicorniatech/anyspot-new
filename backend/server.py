@@ -155,8 +155,7 @@ class User(BaseModel):
     user_id: str
     email: str
     name: str
-    role: str = "customer"  # customer | studio
-    phone: Optional[str] = ""
+    role: str = "customer"  # customer | studio | admin
     picture: Optional[str] = ""
     credits: int = 24
     created_at: str = Field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
@@ -565,7 +564,6 @@ async def get_current_user(request: Request) -> dict:
         email = supa.get("email")
         meta = supa.get("user_metadata") or {}
         name = meta.get("name") or meta.get("full_name") or (email.split("@")[0] if email else "Member")
-        phone = meta.get("phone") or meta.get("phone_number") or ""
         picture = meta.get("avatar_url") or meta.get("picture") or ""
         role_from_meta = normalize_role(meta.get("role"))
 
@@ -581,7 +579,6 @@ async def get_current_user(request: Request) -> dict:
                 user_id=user_id,
                 email=email or f"{user_id}@local.invalid",
                 name=name,
-                phone=phone,
                 picture=picture,
                 role=role_from_meta or "customer",
             ).model_dump()
@@ -593,8 +590,6 @@ async def get_current_user(request: Request) -> dict:
                 "name": name or user.get("name", ""),
                 "picture": picture or user.get("picture", ""),
             }
-            if phone and not user.get("phone"):
-                patch["phone"] = phone
             if not user.get("role"):
                 patch["role"] = role_from_meta or "customer"
             if auth_user_id:
@@ -835,7 +830,6 @@ async def register_studio(payload: StudioRegistrationRequest):
         email=payload.contact_email,
         name=payload.contact_name,
         role="studio",
-        phone=payload.contact_phone,
         picture="",
         credits=24,
     ).model_dump()
@@ -1003,9 +997,6 @@ async def update_me(payload: UserProfileUpdateRequest, user: dict = Depends(get_
         if not name:
             raise HTTPException(status_code=400, detail="Name cannot be empty")
         update["name"] = name
-    if payload.phone is not None:
-        update["phone"] = payload.phone.strip()
-
     if not update:
         return user
 
