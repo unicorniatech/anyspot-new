@@ -1,6 +1,21 @@
+import { Link } from "react-router-dom";
 import { Instagram, Twitter, Mail } from "lucide-react";
 import BrandMark from "./BrandMark";
 import { useI18n } from "../lib/i18n";
+
+const productLinks = [
+  { to: "/explore", labelKey: "footer.exploreStudios" },
+  { to: "/classes", labelKey: "footer.classLibrary" },
+  { to: "/credits", labelKey: "footer.creditPacks" },
+  { to: "/gift-cards", labelKey: "footer.giftCards" },
+];
+
+const companyLinks = [
+  { to: "/about", labelKey: "footer.about" },
+  { to: "/partner", labelKey: "footer.partnerWithUs" },
+  { to: "/press", labelKey: "footer.press" },
+  { to: "/careers", labelKey: "footer.careers" },
+];
 
 export default function Footer() {
   const { t } = useI18n();
@@ -28,20 +43,26 @@ export default function Footer() {
         <div>
           <p className="anyspot-pill text-[#CBF3D2]">{t("footer.product")}</p>
           <ul className="mt-4 space-y-2 text-white/70 text-sm">
-            <li>{t("footer.exploreStudios")}</li>
-            <li>{t("footer.classLibrary")}</li>
-            <li>{t("footer.creditPacks")}</li>
-            <li>{t("footer.giftCards")}</li>
+            {productLinks.map((l) => (
+              <li key={l.to}>
+                <Link to={l.to} className="hover:text-[#CBF3D2] transition-colors">
+                  {t(l.labelKey)}
+                </Link>
+              </li>
+            ))}
           </ul>
         </div>
 
         <div>
           <p className="anyspot-pill text-[#CBF3D2]">{t("footer.company")}</p>
           <ul className="mt-4 space-y-2 text-white/70 text-sm">
-            <li>{t("footer.about")}</li>
-            <li>{t("footer.partnerWithUs")}</li>
-            <li>{t("footer.press")}</li>
-            <li>{t("footer.careers")}</li>
+            {companyLinks.map((l) => (
+              <li key={l.to}>
+                <Link to={l.to} className="hover:text-[#CBF3D2] transition-colors">
+                  {t(l.labelKey)}
+                </Link>
+              </li>
+            ))}
           </ul>
         </div>
       </div>

@@ -7,10 +7,16 @@ import PublicOnlyRoute from "@/components/PublicOnlyRoute";
 import Landing from "@/pages/Landing";
 import HowItWorks from "@/pages/HowItWorks";
 import Explore from "@/pages/Explore";
+import Classes from "@/pages/Classes";
 import StudioProfile from "@/pages/StudioProfile";
 import Dashboard from "@/pages/Dashboard";
 import Partner from "@/pages/Partner";
 import Admin from "@/pages/Admin";
+import About from "@/pages/About";
+import Credits from "@/pages/Credits";
+import GiftCards from "@/pages/GiftCards";
+import Press from "@/pages/Press";
+import Careers from "@/pages/Careers";
 import Login from "@/pages/Login";
 import Signup from "@/pages/Signup";
 import AuthCallback from "@/pages/AuthCallback";
@@ -53,6 +59,12 @@ function AppRouter() {
         <Route path="/" element={<Landing />} />
         <Route path="/how-it-works" element={<HowItWorks />} />
         <Route path="/explore" element={<Explore />} />
+        <Route path="/classes" element={<Classes />} />
+        <Route path="/credits" element={<Credits />} />
+        <Route path="/gift-cards" element={<GiftCards />} />
+        <Route path="/about" element={<About />} />
+        <Route path="/press" element={<Press />} />
+        <Route path="/careers" element={<Careers />} />
         <Route path="/studio/:id" element={<StudioProfile />} />
         <Route
           path="/dashboard"
