@@ -86,43 +86,6 @@ export default function Header() {
             </Link>
           )}
 
-          <div className="hidden md:flex items-center gap-1">
-            <button
-              aria-label="English"
-              onClick={() => setLanguage("en")}
-              className={`w-7 h-7 rounded-full overflow-hidden border-2 transition-all ${
-                language === "en" ? "border-[#FF8552] ring-2 ring-[#FF8552]/30" : "border-transparent"
-              }`}
-            >
-              <svg viewBox="0 0 640 480" className="w-full h-full object-cover">
-                <path fill="#bd3d44" d="M0 0h640v48H0z" />
-                <path fill="#fff" d="M0 48h640v48H0z" />
-                <path fill="#bd3d44" d="M0 96h640v48H0z" />
-                <path fill="#fff" d="M0 144h640v48H0z" />
-                <path fill="#bd3d44" d="M0 192h640v48H0z" />
-                <path fill="#fff" d="M0 240h640v48H0z" />
-                <path fill="#bd3d44" d="M0 288h640v48H0z" />
-                <path fill="#fff" d="M0 336h640v48H0z" />
-                <path fill="#bd3d44" d="M0 384h640v48H0z" />
-                <path fill="#fff" d="M0 432h640v48H0z" />
-                <path fill="#192f5d" d="M0 0h320v288H0z" />
-              </svg>
-            </button>
-            <button
-              aria-label="Čeština"
-              onClick={() => setLanguage("cs-CZ")}
-              className={`w-7 h-7 rounded-full overflow-hidden border-2 transition-all ${
-                language === "cs-CZ" ? "border-[#FF8552] ring-2 ring-[#FF8552]/30" : "border-transparent"
-              }`}
-            >
-              <svg viewBox="0 0 640 480" className="w-full h-full object-cover">
-                <path fill="#fff" d="M0 0h640v480H0z" />
-                <path fill="#d7141a" d="M0 320h640v160H0z" />
-                <path fill="#11457e" d="M0 0h640v160H0z" />
-              </svg>
-            </button>
-          </div>
-
           {!loading && user ? (
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
@@ -187,6 +150,31 @@ export default function Header() {
             </div>
           ) : null}
 
+          <div className="hidden md:flex items-center gap-1 ml-2">
+            <button
+              aria-label="English"
+              onClick={() => setLanguage("en")}
+              className={`w-7 h-7 rounded-full text-[10px] font-bold transition-all ${
+                language === "en"
+                  ? "bg-[#0E0E52] text-white ring-2 ring-[#FF8552]/30"
+                  : "bg-[#0E0E52]/10 text-[#0E0E52] hover:bg-[#0E0E52]/20"
+              }`}
+            >
+              UK
+            </button>
+            <button
+              aria-label="Čeština"
+              onClick={() => setLanguage("cs-CZ")}
+              className={`w-7 h-7 rounded-full text-[10px] font-bold transition-all ${
+                language === "cs-CZ"
+                  ? "bg-[#0E0E52] text-white ring-2 ring-[#FF8552]/30"
+                  : "bg-[#0E0E52]/10 text-[#0E0E52] hover:bg-[#0E0E52]/20"
+              }`}
+            >
+              CZ
+            </button>
+          </div>
+
           <button
             data-testid="mobile-menu-btn"
             className="md:hidden p-2 rounded-full border border-[#0E0E52]/10"
@@ -200,42 +188,32 @@ export default function Header() {
       {open && (
         <div className="md:hidden border-t border-[#0E0E52]/10 bg-white">
           <div className="px-6 py-3 flex flex-col gap-2">
-            <div className="flex items-center gap-2 py-1">
+            <div className="flex items-center justify-between gap-2 py-1">
               <span className="text-xs text-[#4A4A7A]">{t("language.label")}</span>
-              <button
-                aria-label="English"
-                onClick={() => setLanguage("en")}
-                className={`w-7 h-7 rounded-full overflow-hidden border-2 transition-all ${
-                  language === "en" ? "border-[#FF8552] ring-2 ring-[#FF8552]/30" : "border-transparent"
-                }`}
-              >
-                <svg viewBox="0 0 640 480" className="w-full h-full object-cover">
-                  <path fill="#bd3d44" d="M0 0h640v48H0z" />
-                  <path fill="#fff" d="M0 48h640v48H0z" />
-                  <path fill="#bd3d44" d="M0 96h640v48H0z" />
-                  <path fill="#fff" d="M0 144h640v48H0z" />
-                  <path fill="#bd3d44" d="M0 192h640v48H0z" />
-                  <path fill="#fff" d="M0 240h640v48H0z" />
-                  <path fill="#bd3d44" d="M0 288h640v48H0z" />
-                  <path fill="#fff" d="M0 336h640v48H0z" />
-                  <path fill="#bd3d44" d="M0 384h640v48H0z" />
-                  <path fill="#fff" d="M0 432h640v48H0z" />
-                  <path fill="#192f5d" d="M0 0h320v288H0z" />
-                </svg>
-              </button>
-              <button
-                aria-label="Čeština"
-                onClick={() => setLanguage("cs-CZ")}
-                className={`w-7 h-7 rounded-full overflow-hidden border-2 transition-all ${
-                  language === "cs-CZ" ? "border-[#FF8552] ring-2 ring-[#FF8552]/30" : "border-transparent"
-                }`}
-              >
-                <svg viewBox="0 0 640 480" className="w-full h-full object-cover">
-                  <path fill="#fff" d="M0 0h640v480H0z" />
-                  <path fill="#d7141a" d="M0 320h640v160H0z" />
-                  <path fill="#11457e" d="M0 0h640v160H0z" />
-                </svg>
-              </button>
+              <div className="flex items-center gap-1">
+                <button
+                  aria-label="English"
+                  onClick={() => setLanguage("en")}
+                  className={`w-7 h-7 rounded-full text-[10px] font-bold transition-all ${
+                    language === "en"
+                      ? "bg-[#0E0E52] text-white ring-2 ring-[#FF8552]/30"
+                      : "bg-[#0E0E52]/10 text-[#0E0E52] hover:bg-[#0E0E52]/20"
+                  }`}
+                >
+                  UK
+                </button>
+                <button
+                  aria-label="Čeština"
+                  onClick={() => setLanguage("cs-CZ")}
+                  className={`w-7 h-7 rounded-full text-[10px] font-bold transition-all ${
+                    language === "cs-CZ"
+                      ? "bg-[#0E0E52] text-white ring-2 ring-[#FF8552]/30"
+                      : "bg-[#0E0E52]/10 text-[#0E0E52] hover:bg-[#0E0E52]/20"
+                  }`}
+                >
+                  CZ
+                </button>
+              </div>
             </div>
             {!loading && !user && (
               <div className="grid grid-cols-2 gap-2 pt-1">
